@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E75ACFAF2DEBA25700EB81F0 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFAE2DEBA25700EB81F0 /* FirebaseAuth */; };
+		E75ACFB12DEBA25700EB81F0 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFB02DEBA25700EB81F0 /* FirebaseCore */; };
+		E75ACFB32DEBA25700EB81F0 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFB22DEBA25700EB81F0 /* FirebaseFirestore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E75ACF7B2DEB98B100EB81F0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +58,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E75ACFB12DEBA25700EB81F0 /* FirebaseCore in Frameworks */,
+				E75ACFAF2DEBA25700EB81F0 /* FirebaseAuth in Frameworks */,
+				E75ACFB32DEBA25700EB81F0 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +121,9 @@
 			);
 			name = BookClubB;
 			packageProductDependencies = (
+				E75ACFAE2DEBA25700EB81F0 /* FirebaseAuth */,
+				E75ACFB02DEBA25700EB81F0 /* FirebaseCore */,
+				E75ACFB22DEBA25700EB81F0 /* FirebaseFirestore */,
 			);
 			productName = BookClubB;
 			productReference = E75ACF6A2DEB98AF00EB81F0 /* BookClubB.app */;
@@ -195,6 +207,9 @@
 			);
 			mainGroup = E75ACF612DEB98AF00EB81F0;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E75ACFAD2DEBA25700EB81F0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E75ACF6B2DEB98AF00EB81F0 /* Products */;
 			projectDirPath = "";
@@ -558,6 +573,35 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E75ACFAD2DEBA25700EB81F0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = exactVersion;
+				version = 11.13.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E75ACFAE2DEBA25700EB81F0 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E75ACFAD2DEBA25700EB81F0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		E75ACFB02DEBA25700EB81F0 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E75ACFAD2DEBA25700EB81F0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		E75ACFB22DEBA25700EB81F0 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E75ACFAD2DEBA25700EB81F0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E75ACF622DEB98AF00EB81F0 /* Project object */;
 }
