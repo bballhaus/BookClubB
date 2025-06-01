@@ -3,8 +3,7 @@
 //  BookClubB
 //
 //  Created by Brooke Ballhaus on 5/31/25.
-//  Updated to add tappable NavigationLinks so that tapping a group pushes into GroupDetailView.
-//  This file contains GroupPageView and all of its helper subviews (including DefaultGroupsView, SearchResultsView, etc.).
+//  Updated 6/3/25 to remove the `if let createdAt` on a non‐optional Date.
 //
 
 import SwiftUI
@@ -12,289 +11,144 @@ import FirebaseAuth
 import FirebaseFirestore
 
 struct GroupPageView: View {
-    // ── 1) State variables ──────────────────────────────────────────────
-    @State private var allGroups: [BookGroup] = []   // All groups fetched from Firestore
-    @State private var isLoading: Bool = false       // Show spinner while fetching
-    @State private var errorMessage: String? = nil   // Any fetch errors
-
-    // This holds whatever the user types into the search bar
+    // ─── State variables ─────────────────────────────────────────────────────
+    @State private var allGroups: [BookGroup] = []
     @State private var searchText: String = ""
+    @State private var showErrorAlert: Bool = false
+    @State private var errorMessage: String = ""
+    @State private var joinInProgress: Bool = false
 
-    // Computed property for the current user’s UID
+    // For the “answer the question” sheet:
+    @State private var groupToAnswer: BookGroup? = nil
+    @State private var answerText: String = ""
+    @State private var answerErrorMessage: String = ""
+    @State private var showAnswerErrorAlert: Bool = false
+
+    // ─── Computed properties ──────────────────────────────────────────────────
     private var currentUserID: String {
         Auth.auth().currentUser?.uid ?? ""
     }
 
-    // Optional dropdown suggestions for the search bar
-    private var searchSuggestions: [String] {
-        let lower = searchText.lowercased()
-        return allGroups
-            .map { $0.title }
-            .filter { $0.lowercased().contains(lower) }
-            .prefix(5)
-            .map { $0 }
+    private var matchingGroups: [BookGroup] {
+        let lower = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lower.isEmpty {
+            return allGroups
+        }
+        return allGroups.filter { $0.title.lowercased().contains(lower) }
     }
 
     var body: some View {
         NavigationView {
-            VStack {
-                // 1) Show a spinner while loading
-                if isLoading {
-                    ProgressView("Loading groups…")
-                        .padding()
-                }
-                // 2) Show any fetch error
-                else if let error = errorMessage {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                }
-                // 3) If the user has typed something into the search bar, show filtered results
-                else if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    SearchResultsView(
-                        searchText: searchText,
-                        allGroups: allGroups,
-                        onJoinComplete: fetchAllGroups
-                    )
-                }
-                // 4) Otherwise, show the “New Group / Your Groups / Groups You Might Be Interested In” UI
-                else {
-                    DefaultGroupsView(
-                        allGroups: allGroups,
-                        onJoinComplete: fetchAllGroups
-                    )
-                }
-            }
-            .navigationTitle("Groups")
-            // Force a large title so the search bar appears directly below it
-            .navigationBarTitleDisplayMode(.large)
-            // Attach the native iOS search bar right under “Groups”
-            .searchable(
-                text: $searchText,
-                prompt: "Search all groups"
-            ) {
-                // (Optional) live dropdown suggestions
-                ForEach(searchSuggestions, id: \.self) { suggestion in
-                    Text(suggestion)
-                        .searchCompletion(suggestion)
-                }
-            }
-            .onAppear(perform: fetchAllGroups)
-        }
-    }
+            VStack(alignment: .leading) {
+                // ─── Search Bar ────────────────────────────────────────────────
+                TextField("Search groups…", text: $searchText)
+                    .padding(12)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
 
-    // MARK: – Firestore Fetch
+                // ─── “Your Groups” (horizontal list) ─────────────────────────
+                SectionHeaderView(title: "Your Groups")
+                    .padding(.horizontal)
+                    .padding(.top, 8)
 
-    /// Load every document in `/groups` into `allGroups`
-    private func fetchAllGroups() {
-        guard Auth.auth().currentUser != nil else {
-            self.errorMessage = "You must be signed in to view groups."
-            return
-        }
-
-        isLoading = true
-        errorMessage = nil
-
-        let db = Firestore.firestore()
-        db.collection("groups").getDocuments { snapshot, error in
-            DispatchQueue.main.async {
-                self.isLoading = false
-
-                if let error = error {
-                    self.errorMessage = "Failed to load groups: \(error.localizedDescription)"
-                    return
-                }
-
-                guard let docs = snapshot?.documents else {
-                    self.allGroups = []
-                    return
-                }
-
-                // Parse each document into BookGroup
-                self.allGroups = docs.compactMap { doc in
-                    BookGroup.fromDictionary(doc.data(), id: doc.documentID)
-                }
-            }
-        }
-    }
-}
-
-// ───────────────────────────────────────────────────────────────────────
-// MARK: – DefaultGroupsView
-// (Displays “New Group” card, “Your Groups” horizontal scroller, and
-//  “Groups You Might Be Interested In” horizontal scroller. Tappable covers.)
-// ───────────────────────────────────────────────────────────────────────
-
-fileprivate struct DefaultGroupsView: View {
-    let allGroups: [BookGroup]
-    let onJoinComplete: () -> Void
-
-    // Required to determine which groups are “Your Groups” vs. “Other Groups”
-    private var currentUserID: String {
-        Auth.auth().currentUser?.uid ?? ""
-    }
-
-    // Holds state for join button feedback
-    @State private var joinInProgress: Bool = false
-    @State private var showErrorAlert: Bool = false
-    @State private var joinErrorMessage: String = ""
-
-    // “Your Groups” = user is already in memberIDs
-    private var yourGroups: [BookGroup] {
-        allGroups.filter { $0.memberIDs.contains(currentUserID) }
-    }
-
-    // “Other Groups” = user is not yet a member
-    private var otherGroups: [BookGroup] {
-        allGroups.filter { !$0.memberIDs.contains(currentUserID) }
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // ─── “New Group” Banner ────────────────────────────
-                NavigationLink(destination: CreateGroupView()) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(white: 0.95))
-                            .frame(height: 120)
-
-                        HStack(spacing: 16) {
-                            Text("New Group")
-                                .font(.title2)
-                                .bold()
-                                .padding(.leading)
-
-                            Spacer()
-
-                            Image(systemName: "plus.circle.fill")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 32, height: 32)
-                                .padding(.trailing)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(allGroups.filter { $0.memberIDs.contains(currentUserID) }) { group in
+                            NavigationLink(destination: GroupDetailView(groupID: group.id)) {
+                                GroupCardView(group: group)
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
                     }
                     .padding(.horizontal)
                 }
+                .frame(height: 240)
 
-                // ─── “Your Groups” Section (each card is tappable) ─────
-                if !yourGroups.isEmpty {
-                    SectionHeaderView(title: "Your Groups")
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
-                            ForEach(yourGroups) { group in
-                                NavigationLink(
-                                    destination: GroupDetailView(groupID: group.id)
-                                ) {
-                                    GroupCardView(group: group)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
+                // ─── “Groups You Might Be Interested In” (vertical list) ─────
+                SectionHeaderView(title: "Groups You Might Be Interested In")
+                    .padding(.horizontal)
+                    .padding(.top, 16)
+
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        ForEach(matchingGroups) { group in
+                            SearchResultRow(
+                                group: group,
+                                currentUserID: currentUserID,
+                                joinInProgress: $joinInProgress,
+                                groupToAnswer: $groupToAnswer,
+                                errorMessage: $errorMessage,
+                                showErrorAlert: $showErrorAlert
+                            )
                         }
-                        .padding(.horizontal)
                     }
+                    .padding(.vertical)
                 }
-
-                // ─── “Groups You Might Be Interested In” (cover + separate Join) ─
-                if !otherGroups.isEmpty {
-                    SectionHeaderView(title: "Groups You Might Be Interested In")
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
-                            ForEach(otherGroups) { group in
-                                VStack(spacing: 8) {
-                                    // 1) Tappable cover and title → navigates to detail
-                                    NavigationLink(
-                                        destination: GroupDetailView(groupID: group.id)
-                                    ) {
-                                        VStack {
-                                            AsyncImage(url: URL(string: group.imageUrl)) { phase in
-                                                switch phase {
-                                                case .empty:
-                                                    ProgressView()
-                                                        .frame(width: 80, height: 80)
-                                                case .success(let image):
-                                                    image
-                                                        .resizable()
-                                                        .scaledToFill()
-                                                        .frame(width: 80, height: 80)
-                                                        .clipShape(Circle())
-                                                        .shadow(radius: 2)
-                                                case .failure:
-                                                    Circle()
-                                                        .fill(Color.red.opacity(0.1))
-                                                        .overlay(
-                                                            Image(systemName: "exclamationmark.triangle.fill")
-                                                                .foregroundColor(.red)
-                                                        )
-                                                        .frame(width: 80, height: 80)
-                                                @unknown default:
-                                                    Circle()
-                                                        .fill(Color.gray.opacity(0.1))
-                                                        .frame(width: 80, height: 80)
-                                                }
-                                            }
-
-                                            Text(group.title)
-                                                .font(.caption)
-                                                .multilineTextAlignment(.center)
-                                                .frame(width: 80)
-                                        }
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-
-                                    // 2) Join button below the cover (only if not already a member)
-                                    if group.memberIDs.contains(currentUserID) {
-                                        Text("Joined")
-                                            .font(.caption2)
-                                            .foregroundColor(.green)
-                                    } else {
-                                        Button(action: {
-                                            joinGroup(group)
-                                        }) {
-                                            if joinInProgress {
-                                                ProgressView()
-                                                    .scaleEffect(0.8, anchor: .center)
-                                            } else {
-                                                Text("Join")
-                                                    .font(.caption2)
-                                                    .padding(.vertical, 4)
-                                                    .padding(.horizontal, 8)
-                                                    .background(Color.blue.opacity(0.2))
-                                                    .cornerRadius(6)
-                                            }
-                                        }
-                                        .disabled(joinInProgress)
-                                        .alert(isPresented: $showErrorAlert) {
-                                            Alert(
-                                                title: Text("Could not join"),
-                                                message: Text(joinErrorMessage),
-                                                dismissButton: .default(Text("OK"))
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                }
-
-                Spacer(minLength: 20)
             }
-            .padding(.top)
+            .navigationTitle("Groups")
+            .onAppear { fetchAllGroups() }
+            .alert(isPresented: $showErrorAlert) {
+                Alert(
+                    title: Text("Error"),
+                    message: Text(errorMessage),
+                    dismissButton: .default(Text("OK"))
+                )
+            }
+            // ─── Present the sheet to answer the question ─────────────────
+            .sheet(item: $groupToAnswer) { group in
+                AnswerGroupQuestionView(
+                    group: group,
+                    answerText: $answerText,
+                    answerErrorMessage: $answerErrorMessage,
+                    showAnswerErrorAlert: $showAnswerErrorAlert,
+                    joinInProgress: $joinInProgress
+                ) {
+                    // Called when the user types the correct answer:
+                    joinGroupAfterAnswer(group: group)
+                } onCancel: {
+                    groupToAnswer = nil
+                }
+                // Clear answer fields when the sheet appears:
+                .onAppear {
+                    answerText = ""
+                    answerErrorMessage = ""
+                    showAnswerErrorAlert = false
+                }
+            }
         }
     }
 
-    // MARK: – Helper to join a group
-    private func joinGroup(_ group: BookGroup) {
+    // ───────────────────────────────────────────────────────────────────────────
+    /// Fetch all groups from Firestore, sorted by creation date
+    private func fetchAllGroups() {
+        let db = Firestore.firestore()
+        db.collection("groups")
+            .order(by: "createdAt", descending: true)
+            .getDocuments { snapshot, err in
+                if let err = err {
+                    errorMessage = "Failed to load groups: \(err.localizedDescription)"
+                    showErrorAlert = true
+                } else {
+                    allGroups = snapshot?.documents.compactMap { doc in
+                        BookGroup.fromDictionary(doc.data(), id: doc.documentID)
+                    } ?? []
+                }
+            }
+    }
+
+    // ───────────────────────────────────────────────────────────────────────────
+    /// Called once the user correctly answers the question.
+    private func joinGroupAfterAnswer(group: BookGroup) {
         guard let user = Auth.auth().currentUser else {
-            joinErrorMessage = "You must be signed in to join."
-            showErrorAlert = true
+            answerErrorMessage = "You must be signed in to join."
+            showAnswerErrorAlert = true
+            groupToAnswer = nil
             return
         }
-        joinInProgress = true
 
+        joinInProgress = true
         let db = Firestore.firestore()
         let groupRef = db.collection("groups").document(group.id)
 
@@ -304,130 +158,44 @@ fileprivate struct DefaultGroupsView: View {
         ]) { err in
             joinInProgress = false
             if let err = err {
-                joinErrorMessage = err.localizedDescription
+                errorMessage = "Could not join: \(err.localizedDescription)"
                 showErrorAlert = true
             } else {
-                onJoinComplete()
+                // Refresh so the “Joined” state updates
+                fetchAllGroups()
             }
+            groupToAnswer = nil
         }
     }
 }
 
-// ───────────────────────────────────────────────────────────────────────
-// MARK: – SearchResultsView
-// (Displays a vertical list of all groups whose title contains `searchText`,
-//  now wrapped in a NavigationLink so each row pushes into GroupDetailView.)
-// ───────────────────────────────────────────────────────────────────────
 
-fileprivate struct SearchResultsView: View {
-    let searchText: String
-    let allGroups: [BookGroup]
-    let onJoinComplete: () -> Void
-
-    // Computed property for the current user’s UID
-    private var currentUserID: String {
-        Auth.auth().currentUser?.uid ?? ""
-    }
-
-    // Filtered list of groups whose titles match the search text
-    private var matchingGroups: [BookGroup] {
-        let lower = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return allGroups.filter { $0.title.lowercased().contains(lower) }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading) {
-            if matchingGroups.isEmpty {
-                Text("No groups found for “\(searchText)”")
-                    .foregroundColor(.gray)
-                    .italic()
-                    .padding()
-            } else {
-                List {
-                    ForEach(matchingGroups) { group in
-                        HStack {
-                            // ① Wrap the title in a NavigationLink to the detail view
-                            NavigationLink(destination: GroupDetailView(groupID: group.id)) {
-                                Text(group.title)
-                                    .font(.body)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-
-                            Spacer()
-
-                            // ② If the user is already a member, show a checkmark
-                            if group.memberIDs.contains(currentUserID) {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.green)
-                            }
-                            // Otherwise show a “Join” button inline
-                            else {
-                                Button("Join") {
-                                    joinGroup(group)
-                                }
-                                .buttonStyle(BorderlessButtonStyle())
-                            }
-                        }
-                        .padding(.vertical, 8)
-                    }
-                }
-                .listStyle(PlainListStyle())
-            }
-        }
-    }
-
-    private func joinGroup(_ group: BookGroup) {
-        guard let user = Auth.auth().currentUser else { return }
-        let db = Firestore.firestore()
-        let groupRef = db.collection("groups").document(group.id)
-
-        groupRef.updateData([
-            "memberIDs": FieldValue.arrayUnion([user.uid]),
-            "updatedAt": Timestamp(date: Date())
-        ]) { err in
-            if let err = err {
-                print("Could not join: \(err.localizedDescription)")
-            } else {
-                onJoinComplete()
-            }
-        }
-    }
-}
-
-// ───────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────────
 // MARK: – SectionHeaderView
-// A simple header for each horizontal section (Your Groups, Other Groups)
-// ───────────────────────────────────────────────────────────────────────
-
+// A small helper to render section titles (“Your Groups”, etc.)
+// ───────────────────────────────────────────────────────────────────────────────
 fileprivate struct SectionHeaderView: View {
     let title: String
 
     var body: some View {
-        HStack {
-            Text(title)
-                .font(.headline)
-                .padding(.leading)
-            Spacer()
-            Image(systemName: "chevron.right")
-                .padding(.trailing)
-        }
+        Text(title)
+            .font(.headline)
     }
 }
 
-// ───────────────────────────────────────────────────────────────────────
-// MARK: – GroupCardView
-// Shows a large cover image + title for “Your Groups”
-// ───────────────────────────────────────────────────────────────────────
 
+// ───────────────────────────────────────────────────────────────────────────────
+// MARK: – GroupCardView
+// Renders a single “card” in the horizontal “Your Groups” scroller.
+// ───────────────────────────────────────────────────────────────────────────────
 fileprivate struct GroupCardView: View {
     let group: BookGroup
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack {
             AsyncImage(url: URL(string: group.imageUrl)) { phase in
                 switch phase {
                 case .empty:
-                    // Placeholder rectangle while loading
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color.gray.opacity(0.1))
                         .frame(width: 140, height: 200)
@@ -436,13 +204,13 @@ fileprivate struct GroupCardView: View {
                         .resizable()
                         .scaledToFill()
                         .frame(width: 140, height: 200)
+                        .clipped()
                         .cornerRadius(8)
                 case .failure:
-                    // Fallback if the URL is bad
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color.red.opacity(0.1))
                         .overlay(
-                            Image(systemName: "xmark.octagon.fill")
+                            Image(systemName: "photo.fill")
                                 .foregroundColor(.red)
                         )
                         .frame(width: 140, height: 200)
@@ -457,6 +225,195 @@ fileprivate struct GroupCardView: View {
                 .font(.caption)
                 .multilineTextAlignment(.center)
                 .frame(width: 140)
+        }
+    }
+}
+
+
+// ───────────────────────────────────────────────────────────────────────────────
+// MARK: – SearchResultRow
+// Renders one row in the vertical “Groups You Might Be Interested In” list.
+// ───────────────────────────────────────────────────────────────────────────────
+fileprivate struct SearchResultRow: View {
+    let group: BookGroup
+    let currentUserID: String
+
+    // Bindings from parent:
+    @Binding var joinInProgress: Bool
+    @Binding var groupToAnswer: BookGroup?
+    @Binding var errorMessage: String
+    @Binding var showErrorAlert: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                AsyncImage(url: URL(string: group.imageUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(width: 80, height: 80)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 80, height: 80)
+                            .clipped()
+                            .cornerRadius(8)
+                    case .failure:
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.red.opacity(0.1))
+                            .overlay(
+                                Image(systemName: "photo.fill")
+                                    .foregroundColor(.red)
+                            )
+                            .frame(width: 80, height: 80)
+                    @unknown default:
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(width: 80, height: 80)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(group.title)
+                        .font(.headline)
+                    Text("by \(group.bookAuthor)")  // <-- correct field name
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                if group.memberIDs.contains(currentUserID) {
+                    Text("Joined")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                        .padding(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.green, lineWidth: 1)
+                        )
+                } else {
+                    Button {
+                        // Prepare to present the sheet; clear answer fields on sheet appear
+                        groupToAnswer = group
+                    } label: {
+                        Text(joinInProgress && groupToAnswer?.id == group.id
+                               ? "Joining…"
+                               : "Join")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 12)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                    }
+                    .disabled(joinInProgress)
+                }
+            }
+
+            // Directly use group.createdAt (non-optional Date)
+            HStack(spacing: 8) {
+                Text("\(group.memberIDs.count) members")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("·")
+                Text(group.createdAt, style: .date)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(UIColor.systemBackground))
+                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        )
+        .padding(.horizontal)
+    }
+}
+
+
+// ───────────────────────────────────────────────────────────────────────────────
+// MARK: – AnswerGroupQuestionView
+// Presented as a sheet to ask the moderation question (case‐insensitive).
+// ───────────────────────────────────────────────────────────────────────────────
+fileprivate struct AnswerGroupQuestionView: View {
+    let group: BookGroup
+
+    @Binding var answerText: String
+    @Binding var answerErrorMessage: String
+    @Binding var showAnswerErrorAlert: Bool
+    @Binding var joinInProgress: Bool
+
+    var onCorrectAnswer: () -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                Text("To join “\(group.title)”, answer:")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                Text(group.moderationQuestion)
+                    .font(.subheadline)
+                    .italic()
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                TextField("Your answer", text: $answerText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding(.horizontal)
+
+                if joinInProgress {
+                    ProgressView()
+                        .padding(.top, 8)
+                }
+
+                Spacer()
+            }
+            .padding(.top, 40)
+            .navigationTitle("Answer to Join")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    onCancel()
+                },
+                trailing: Button("Submit") {
+                    checkAnswer()
+                }
+                .disabled(
+                    answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || joinInProgress
+                )
+            )
+            .alert(isPresented: $showAnswerErrorAlert) {
+                Alert(
+                    title: Text("Incorrect Answer"),
+                    message: Text(answerErrorMessage),
+                    dismissButton: .default(Text("Try Again"))
+                )
+            }
+        }
+    }
+
+    private func checkAnswer() {
+        let trimmedInput = answerText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let trimmedCorrect = group.correctAnswer
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if trimmedInput == trimmedCorrect {
+            onCorrectAnswer()
+        } else {
+            answerErrorMessage = "That’s not correct. Please try again."
+            showAnswerErrorAlert = true
         }
     }
 }
