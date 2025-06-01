@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by Brooke Ballhaus on 5/31/25.
-//  Updated 6/3/25 to remove the `if let createdAt` on a non‐optional Date.
+//  Updated 6/4/25 to allow tapping the group image to navigate to GroupDetailView.
 //
 
 import SwiftUI
@@ -110,8 +110,8 @@ struct GroupPageView: View {
                 } onCancel: {
                     groupToAnswer = nil
                 }
-                // Clear answer fields when the sheet appears:
                 .onAppear {
+                    // Clear answer fields when the sheet appears
                     answerText = ""
                     answerErrorMessage = ""
                     showAnswerErrorAlert = false
@@ -161,7 +161,7 @@ struct GroupPageView: View {
                 errorMessage = "Could not join: \(err.localizedDescription)"
                 showErrorAlert = true
             } else {
-                // Refresh so the “Joined” state updates
+                // Refresh so the “Joined” state appears
                 fetchAllGroups()
             }
             groupToAnswer = nil
@@ -233,6 +233,7 @@ fileprivate struct GroupCardView: View {
 // ───────────────────────────────────────────────────────────────────────────────
 // MARK: – SearchResultRow
 // Renders one row in the vertical “Groups You Might Be Interested In” list.
+// Now the image itself is a NavigationLink to GroupDetailView.
 // ───────────────────────────────────────────────────────────────────────────────
 fileprivate struct SearchResultRow: View {
     let group: BookGroup
@@ -247,38 +248,42 @@ fileprivate struct SearchResultRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                AsyncImage(url: URL(string: group.imageUrl)) { phase in
-                    switch phase {
-                    case .empty:
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.gray.opacity(0.1))
-                            .frame(width: 80, height: 80)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 80, height: 80)
-                            .clipped()
-                            .cornerRadius(8)
-                    case .failure:
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.red.opacity(0.1))
-                            .overlay(
-                                Image(systemName: "photo.fill")
-                                    .foregroundColor(.red)
-                            )
-                            .frame(width: 80, height: 80)
-                    @unknown default:
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.gray.opacity(0.1))
-                            .frame(width: 80, height: 80)
+                // ─── Make the image tappable to navigate into GroupDetailView ───
+                NavigationLink(destination: GroupDetailView(groupID: group.id)) {
+                    AsyncImage(url: URL(string: group.imageUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(width: 80, height: 80)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 80, height: 80)
+                                .clipped()
+                                .cornerRadius(8)
+                        case .failure:
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.red.opacity(0.1))
+                                .overlay(
+                                    Image(systemName: "photo.fill")
+                                        .foregroundColor(.red)
+                                )
+                                .frame(width: 80, height: 80)
+                        @unknown default:
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(width: 80, height: 80)
+                        }
                     }
                 }
+                .buttonStyle(PlainButtonStyle())
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(group.title)
                         .font(.headline)
-                    Text("by \(group.bookAuthor)")  // <-- correct field name
+                    Text("by \(group.bookAuthor)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -296,7 +301,7 @@ fileprivate struct SearchResultRow: View {
                         )
                 } else {
                     Button {
-                        // Prepare to present the sheet; clear answer fields on sheet appear
+                        // Prepare to present the sheet; sheet appears next
                         groupToAnswer = group
                     } label: {
                         Text(joinInProgress && groupToAnswer?.id == group.id
@@ -313,7 +318,6 @@ fileprivate struct SearchResultRow: View {
                 }
             }
 
-            // Directly use group.createdAt (non-optional Date)
             HStack(spacing: 8) {
                 Text("\(group.memberIDs.count) members")
                     .font(.caption)
@@ -338,7 +342,7 @@ fileprivate struct SearchResultRow: View {
 
 // ───────────────────────────────────────────────────────────────────────────────
 // MARK: – AnswerGroupQuestionView
-// Presented as a sheet to ask the moderation question (case‐insensitive).
+// Presented as a sheet to ask the moderation question (case-insensitive).
 // ───────────────────────────────────────────────────────────────────────────────
 fileprivate struct AnswerGroupQuestionView: View {
     let group: BookGroup

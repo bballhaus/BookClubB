@@ -2,8 +2,8 @@
 //  GroupDetailView.swift
 //  BookClubB
 //
-//  Created by YourName on 6/1/25.
-//  Updated 6/3/25 to remove duplicate type declarations and reference existing models.
+//  Created by Irene Lin on 5/31/25.
+//  Updated 6/4/25 to fix join flow so UI updates immediately after answering.
 //
 
 import SwiftUI
@@ -13,25 +13,25 @@ import FirebaseFirestore
 struct GroupDetailView: View {
     let groupID: String
 
-    // Use the already–defined ViewModel (GroupDetailViewModel.swift :contentReference[oaicite:1]{index=1})
     @StateObject private var viewModel = GroupDetailViewModel()
 
-    // Controls presentation of the “New Thread” sheet (shown only if isMember)
+    // Controls presentation of the “New Thread” sheet (members only)
     @State private var showingNewThreadSheet: Bool = false
 
-    // When not yet a member, we ask the moderation question:
+    // Controls presentation of the “Join” sheet (when not a member)
+    @State private var showJoinPrompt: Bool = false
+
+    // Bindings for AnswerGroupQuestionView
     @State private var answerText: String = ""
-    @State private var showAnswerErrorAlert: Bool = false
     @State private var answerErrorMessage: String = ""
+    @State private var showAnswerErrorAlert: Bool = false
     @State private var joinInProgress: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // ── Wait until the group data is loaded ──
+        VStack(spacing: 0) {
+            // ── Header Area ────────────────────────────────────────────
             if let group = viewModel.group {
-                // ── Header: group image + title + member‐count preview ──
-                VStack(alignment: .leading, spacing: 8) {
-                    // Cover image (using group.imageUrl from BookGroup.swift :contentReference[oaicite:2]{index=2})
+                VStack(alignment: .leading, spacing: 12) {
                     AsyncImage(url: URL(string: group.imageUrl)) { phase in
                         switch phase {
                         case .empty:
@@ -67,7 +67,6 @@ struct GroupDetailView: View {
                         .padding(.horizontal)
                         .multilineTextAlignment(.center)
 
-                    // Show up to 3 placeholder circles for existing members
                     HStack(spacing: 8) {
                         ForEach(Array(group.memberIDs.prefix(3)), id: \.self) { _ in
                             Circle()
@@ -80,158 +79,117 @@ struct GroupDetailView: View {
                     }
                     .padding(.horizontal)
 
-                    Divider().padding(.horizontal)
+                    Divider()
                 }
-
-                // ── If the user is not yet a member and has not answered, show the moderation question ──
-                if !viewModel.isMember && !viewModel.hasAnswered {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Moderation Question:")
-                            .font(.headline)
-                            .padding(.horizontal)
-
-                        Text(group.moderationQuestion)
-                            .font(.body)
-                            .padding(.horizontal)
-
-                        TextField("Your answer", text: $answerText)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .padding(.horizontal)
-
-                        Button(action: submitAnswer) {
-                            HStack {
-                                Spacer()
-                                if joinInProgress {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        .padding(.vertical, 8)
-                                } else {
-                                    Text("Submit Answer")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                        .padding(.vertical, 8)
-                                }
-                                Spacer()
-                            }
-                            .background(joinInProgress ? Color.gray : Color.blue)
-                            .cornerRadius(8)
-                            .padding(.horizontal)
-                        }
-                        .disabled(answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || joinInProgress)
-                    }
-                }
-
-                // ── If they have answered but Firestore hasn’t updated isMember yet ──
-                else if !viewModel.isMember && viewModel.hasAnswered {
-                    Text("Your answer was submitted. Waiting for approval.")
-                        .italic()
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal)
-                        .padding(.top, 20)
-                }
-
-                // ── If the user _is_ a member, show the thread list + “Add Post” ──
-                else if viewModel.isMember {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Posts")
-                            .font(.headline)
-                            .padding(.horizontal)
-
-                        if viewModel.threads.isEmpty {
-                            Spacer()
-                            Text("No threads yet. Be the first to post!")
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal)
-                            Spacer()
-                        } else {
-                            ScrollView {
-                                LazyVStack(spacing: 16) {
-                                    // Use the existing ThreadModel and toggleLike from GroupDetailViewModel :contentReference[oaicite:3]{index=3}
-                                    ForEach(viewModel.threads) { thread in
-                                        ThreadView(
-                                            groupID: groupID,
-                                            thread: thread,
-                                            viewModel: viewModel
-                                        )
-                                        .padding(.horizontal)
-                                    }
-                                }
-                                .padding(.vertical)
-                            }
-                        }
-
-                        Button(action: {
-                            showingNewThreadSheet = true
-                        }) {
-                            Text("Add Post")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.black)
-                                .cornerRadius(12)
-                                .padding(.horizontal)
-                                .padding(.bottom, 16)
-                        }
-                        .sheet(isPresented: $showingNewThreadSheet) {
-                            NewThreadView(groupID: groupID)
-                        }
-                    }
-                }
-
-                Spacer(minLength: 20)
-            }
-            // ── If the group data is not yet loaded, show a spinner ──
-            else {
+            } else {
+                // Spinner while group is loading
                 VStack {
                     ProgressView("Loading group…")
                         .padding(.top, 40)
-                    Text("Please wait…")
-                        .foregroundColor(.secondary)
+                    Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // We deliberately do NOT return here, so that the rest of the VStack still exists.
+            }
+
+            // ── Thread List (always visible) ────────────────────────────
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(viewModel.threads) { thread in
+                        ThreadRowView(
+                            groupID: groupID,
+                            thread: thread,
+                            viewModel: viewModel,
+                            isMember: viewModel.isMember
+                        )
+                        .padding(.horizontal)
+                    }
+                }
+                .padding(.vertical)
+            }
+
+            Divider()
+
+            // ── Bottom Button Area ──────────────────────────────────────
+            if viewModel.isMember {
+                Button(action: {
+                    showingNewThreadSheet = true
+                }) {
+                    Text("Add Post")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                        .padding(.bottom, 16)
+                }
+                .sheet(isPresented: $showingNewThreadSheet) {
+                    NewThreadView(groupID: groupID)
+                }
+            } else {
+                Button(action: {
+                    showJoinPrompt = true
+                }) {
+                    Text("Join Group to Post & Like")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green)
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                        .padding(.bottom, 16)
+                }
+                .sheet(isPresented: $showJoinPrompt) {
+                    // Force‐unwrap safe because we only present if group != nil
+                    AnswerGroupQuestionView(
+                        group: viewModel.group!,
+                        answerText: $answerText,
+                        answerErrorMessage: $answerErrorMessage,
+                        showAnswerErrorAlert: $showAnswerErrorAlert,
+                        joinInProgress: $joinInProgress
+                    ) {
+                        joinAfterAnswer()
+                    } onCancel: {
+                        showJoinPrompt = false
+                    }
+                    .onAppear {
+                        // Reset fields whenever this sheet appears
+                        answerText = ""
+                        answerErrorMessage = ""
+                        showAnswerErrorAlert = false
+                    }
+                }
             }
         }
+        .navigationTitle("Group Details")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.bind(to: groupID)
         }
-        .alert(isPresented: $showAnswerErrorAlert) {
-            Alert(
-                title: Text("Incorrect Answer"),
-                message: Text(answerErrorMessage),
-                dismissButton: .default(Text("Try Again"))
-            )
+        .onDisappear {
+            viewModel.detachListeners()
         }
     }
 
     // ───────────────────────────────────────────────────────────────────────────
-    /// Called when the user taps “Submit Answer.” Performs a case‐insensitive check
-    /// against `group.correctAnswer` (from BookGroup.swift :contentReference[oaicite:4]{index=4}), and if correct,
-    /// adds the current user’s UID to `memberIDs`. Otherwise, shows an alert and lets them try again.
-    private func submitAnswer() {
-        guard let group = viewModel.group else { return }
+    /// Called once the user types the correct answer in AnswerGroupQuestionView.
+    /// Writes their UID into Firestore ⟶ "memberIDs". Then immediately appends
+    /// currentUser.uid to `viewModel.group?.memberIDs` so that `viewModel.isMember`
+    /// flips to true right away (without waiting for Firestore to push down a new snapshot).
+    private func joinAfterAnswer() {
+        guard let group = viewModel.group else {
+            showJoinPrompt = false
+            return
+        }
         guard let currentUser = Auth.auth().currentUser else {
             answerErrorMessage = "You must be signed in to join."
             showAnswerErrorAlert = true
             return
         }
 
-        // Trim & lowercase both strings for a case‐insensitive comparison
-        let trimmedInput = answerText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let trimmedCorrect = group.correctAnswer
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        if trimmedInput != trimmedCorrect {
-            answerErrorMessage = "That’s not correct. Please try again."
-            showAnswerErrorAlert = true
-            return
-        }
-
-        // If the answer is correct, update Firestore → add the user to memberIDs
         joinInProgress = true
         let db = Firestore.firestore()
         let groupRef = db.collection("groups").document(groupID)
@@ -240,16 +198,21 @@ struct GroupDetailView: View {
             "memberIDs": FieldValue.arrayUnion([currentUser.uid]),
             "updatedAt": Timestamp(date: Date())
         ]) { err in
-            DispatchQueue.main.async {
-                self.joinInProgress = false
-                if let err = err {
-                    answerErrorMessage = "Failed to join: \(err.localizedDescription)"
-                    showAnswerErrorAlert = true
-                } else {
-                    // Once Firestore updates, the listener in GroupDetailViewModel
-                    // will set viewModel.isMember = true, causing the UI to switch over.
-                    viewModel.bind(to: groupID)
+            joinInProgress = false
+            if let err = err {
+                // If Firestore write fails
+                answerErrorMessage = "Failed to join: \(err.localizedDescription)"
+                showAnswerErrorAlert = true
+            } else {
+                // 1) Locally append the UID so viewModel.isMember == true immediately
+                if !viewModel.group!.memberIDs.contains(currentUser.uid) {
+                    viewModel.group!.memberIDs.append(currentUser.uid)
                 }
+                // 2) Also re‐bind to pick up any other document changes
+                viewModel.bind(to: groupID)
+
+                // 3) Dismiss the sheet
+                showJoinPrompt = false
             }
         }
     }
@@ -257,18 +220,18 @@ struct GroupDetailView: View {
 
 
 /// ───────────────────────────────────────────────────────────────────────────────
-/// A single “post” (thread) row. Displays avatar, username, content, and the “like”
-/// + “reply” icons. Tapping “like” calls viewModel.toggleLike(...) (from GroupDetailViewModel :contentReference[oaicite:5]{index=5}).
-/// Tapping the bubble navigates to ThreadDetailView.
+/// A single thread row. Shows avatar, username, content, and the “like” + “reply” icons.
+/// For non‐members, the heart is gray and disabled; reply still works.
 /// ───────────────────────────────────────────────────────────────────────────────
-struct ThreadView: View {
+struct ThreadRowView: View {
     let groupID: String
     let thread: ThreadModel
     @ObservedObject var viewModel: GroupDetailViewModel
+    let isMember: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Avatar + username + timestamp
+            // ── Avatar + username + timestamp ──
             HStack(spacing: 12) {
                 AsyncImage(url: URL(string: thread.avatarUrl)) { phase in
                     switch phase {
@@ -305,30 +268,30 @@ struct ThreadView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-
                 Spacer()
             }
 
-            // Thread content
+            // ── Content ──
             Text(thread.content)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // Like & Reply icons
+            // ── Like & Reply icons ──
             HStack(spacing: 24) {
                 Button {
-                    viewModel.toggleLike(groupID: groupID, threadID: thread.id)
-                } label: {
-                    if thread.isLikedByCurrentUser {
-                        Image(systemName: "heart.fill")
-                            .font(.title3)
-                            .foregroundColor(.red)
-                    } else {
-                        Image(systemName: "heart")
-                            .font(.title3)
-                            .foregroundColor(.gray)
+                    if isMember {
+                        viewModel.toggleLike(groupID: groupID, threadID: thread.id)
                     }
+                } label: {
+                    Image(systemName: thread.isLikedByCurrentUser ? "heart.fill" : "heart")
+                        .font(.title3)
+                        .foregroundColor(
+                            isMember
+                                ? (thread.isLikedByCurrentUser ? .red : .gray)
+                                : .gray.opacity(0.5)
+                        )
                 }
+                .disabled(!isMember)
 
                 NavigationLink(destination: ThreadDetailView(groupID: groupID, thread: thread)) {
                     Image(systemName: "bubble.right")
@@ -338,7 +301,7 @@ struct ThreadView: View {
             }
             .font(.title3)
 
-            // Footer: “X likes · Y replies”
+            // ── Footer ──
             HStack(spacing: 8) {
                 Text("\(thread.likesCount) likes")
                 Text("·")
@@ -348,6 +311,89 @@ struct ThreadView: View {
             .foregroundColor(.secondary)
 
             Divider()
+        }
+    }
+}
+
+
+/// ───────────────────────────────────────────────────────────────────────────────
+/// Presented as a sheet to ask the moderation question (case‐insensitive).
+/// If input matches `correctAnswer`, calls `onCorrectAnswer()`. Otherwise shows an alert.
+/// ───────────────────────────────────────────────────────────────────────────────
+fileprivate struct AnswerGroupQuestionView: View {
+    let group: BookGroup
+
+    @Binding var answerText: String
+    @Binding var answerErrorMessage: String
+    @Binding var showAnswerErrorAlert: Bool
+    @Binding var joinInProgress: Bool
+
+    var onCorrectAnswer: () -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                Text("To join “\(group.title)”, answer:")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                Text(group.moderationQuestion)
+                    .font(.subheadline)
+                    .italic()
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                TextField("Your answer", text: $answerText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding(.horizontal)
+
+                if joinInProgress {
+                    ProgressView()
+                        .padding(.top, 8)
+                }
+
+                Spacer()
+            }
+            .padding(.top, 40)
+            .navigationTitle("Answer to Join")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    onCancel()
+                },
+                trailing: Button("Submit") {
+                    checkAnswer()
+                }
+                .disabled(
+                    answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || joinInProgress
+                )
+            )
+            .alert(isPresented: $showAnswerErrorAlert) {
+                Alert(
+                    title: Text("Incorrect Answer"),
+                    message: Text(answerErrorMessage),
+                    dismissButton: .default(Text("Try Again"))
+                )
+            }
+        }
+    }
+
+    private func checkAnswer() {
+        let trimmedInput = answerText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let trimmedCorrect = group.correctAnswer
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if trimmedInput == trimmedCorrect {
+            onCorrectAnswer()
+        } else {
+            answerErrorMessage = "That’s not correct. Please try again."
+            showAnswerErrorAlert = true
         }
     }
 }
