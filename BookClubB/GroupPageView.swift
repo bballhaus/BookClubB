@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by Brooke Ballhaus on 5/31/25.
-//  Updated 6/4/25 to allow tapping the group image to navigate to GroupDetailView.
+//  Updated 6/4/25: hide groups you already belong to from “interested in”.
 //
 
 import SwiftUI
@@ -29,12 +29,21 @@ struct GroupPageView: View {
         Auth.auth().currentUser?.uid ?? ""
     }
 
+    /// All groups filtered by search text (regardless of membership)
     private var matchingGroups: [BookGroup] {
-        let lower = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let lower = searchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
         if lower.isEmpty {
             return allGroups
         }
         return allGroups.filter { $0.title.lowercased().contains(lower) }
+    }
+
+    /// Only those groups the user does NOT already belong to
+    private var recommendedGroups: [BookGroup] {
+        // Note: we must wrap the contains(...) call in parentheses so `!` knows what to negate
+        matchingGroups.filter { !($0.memberIDs.contains(currentUserID)) }
     }
 
     var body: some View {
@@ -73,7 +82,7 @@ struct GroupPageView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        ForEach(matchingGroups) { group in
+                        ForEach(recommendedGroups) { group in
                             SearchResultRow(
                                 group: group,
                                 currentUserID: currentUserID,
@@ -232,8 +241,8 @@ fileprivate struct GroupCardView: View {
 
 // ───────────────────────────────────────────────────────────────────────────────
 // MARK: – SearchResultRow
-// Renders one row in the vertical “Groups You Might Be Interested In” list.
-// Now the image itself is a NavigationLink to GroupDetailView.
+// Renders one row in the vertical “Groups You Might Be Interested In” list,
+// excluding anything the user already belongs to.
 // ───────────────────────────────────────────────────────────────────────────────
 fileprivate struct SearchResultRow: View {
     let group: BookGroup
@@ -248,7 +257,7 @@ fileprivate struct SearchResultRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                // ─── Make the image tappable to navigate into GroupDetailView ───
+                // Tappable image navigates to GroupDetailView
                 NavigationLink(destination: GroupDetailView(groupID: group.id)) {
                     AsyncImage(url: URL(string: group.imageUrl)) { phase in
                         switch phase {
@@ -342,7 +351,7 @@ fileprivate struct SearchResultRow: View {
 
 // ───────────────────────────────────────────────────────────────────────────────
 // MARK: – AnswerGroupQuestionView
-// Presented as a sheet to ask the moderation question (case-insensitive).
+// Presented as a sheet to ask the moderation question (case‐insensitive).
 // ───────────────────────────────────────────────────────────────────────────────
 fileprivate struct AnswerGroupQuestionView: View {
     let group: BookGroup
