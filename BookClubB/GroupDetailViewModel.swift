@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by YourName on 6/1/25.
-//  Updated 6/4/25: correct thread parsing & fetch ownerUsername.
+//  Updated 6/10/25 to add deleteThread(…) for group owners and fetch moderator usernames.
 //
 
 import Foundation
@@ -12,19 +12,25 @@ import FirebaseAuth
 
 class GroupDetailViewModel: ObservableObject {
     @Published var group: BookGroup? = nil
-    @Published var ownerUsername: String = ""
+
+    // Holds the usernames (String) of every moderator UID in group.moderatorIDs
+    @Published var moderatorUsernames: [String] = []
+
+    // Holds the list of threads (posts) in this group
     @Published var threads: [GroupThread] = []
+
+    // True if the signed-in user is already a member of this group
     @Published var isMember: Bool = false
-    
+
     private var groupListener: ListenerRegistration?
     private var threadsListener: ListenerRegistration?
 
-    /// Call this in GroupDetailView.onAppear(groupID:) to start listening
+    /// Start listening to Firestore for this group’s document and its threads
     func bind(to groupID: String) {
         let db = Firestore.firestore()
         let groupRef = db.collection("groups").document(groupID)
 
-        // 1) Listen to the group document itself
+        // 1) Listen for changes to the group document itself
         groupListener = groupRef.addSnapshotListener { [weak self] snapshot, error in
             guard let self = self else { return }
             if let error = error {
@@ -37,6 +43,7 @@ class GroupDetailViewModel: ObservableObject {
             else {
                 return
             }
+
             DispatchQueue.main.async {
                 self.group = fetchedGroup
 
@@ -47,12 +54,12 @@ class GroupDetailViewModel: ObservableObject {
                     self.isMember = false
                 }
 
-                // Fetch the owner’s username from /users/{ownerID}
-                self.fetchOwnerUsername(ownerID: fetchedGroup.ownerID)
+                // Fetch the display‐names of all moderator UIDs
+                self.fetchModeratorUsernames(modIDs: fetchedGroup.moderatorIDs)
             }
         }
 
-        // 2) Listen to “groups/{groupID}/threads” subcollection, sorted by createdAt descending
+        // 2) Listen for threads (posts) under /groups/{groupID}/threads
         threadsListener = groupRef
             .collection("threads")
             .order(by: "createdAt", descending: true)
@@ -72,31 +79,47 @@ class GroupDetailViewModel: ObservableObject {
             }
     }
 
-    /// Detach Firestore listeners (call in onDisappear)
+    /// Call in GroupDetailView.onDisappear to stop Firestore listeners
     func detachListeners() {
         groupListener?.remove()
         threadsListener?.remove()
     }
 
-    /// Look up the ownerUsername from Firestore “users/{ownerID}” document
-    private func fetchOwnerUsername(ownerID: String) {
-        let db = Firestore.firestore()
-        let userRef = db.collection("users").document(ownerID)
-        userRef.getDocument { snapshot, error in
-            if let data = snapshot?.data(),
-               let username = data["username"] as? String {
-                DispatchQueue.main.async {
-                    self.ownerUsername = username
-                }
-            } else {
-                DispatchQueue.main.async {
-                    self.ownerUsername = ""
-                }
+    // ─────────────────────────────────────────────────────────────────────────
+    /// Given an array of moderator UIDs, look up each user’s “username” in /users/{modUID},
+    /// and store all successfully fetched usernames into `moderatorUsernames`.
+    private func fetchModeratorUsernames(modIDs: [String]) {
+        guard !modIDs.isEmpty else {
+            DispatchQueue.main.async {
+                self.moderatorUsernames = []
             }
+            return
+        }
+        let db = Firestore.firestore()
+        var names: [String] = []
+        let group = DispatchGroup()
+
+        for modUID in modIDs {
+            group.enter()
+            let userRef = db.collection("users").document(modUID)
+            userRef.getDocument { snapshot, error in
+                defer { group.leave() }
+                if let data = snapshot?.data(),
+                   let username = data["username"] as? String {
+                    names.append(username)
+                }
+                // If it fails or “username” is missing, skip that UID.
+            }
+        }
+
+        group.notify(queue: .main) {
+            // Once all lookups finish, update the @Published array
+            self.moderatorUsernames = names
         }
     }
 
-    /// Toggle like/unlike for a given thread. Adjust to match your Firestore schema.
+    // ─────────────────────────────────────────────────────────────────────────
+    /// Toggle a “like” on a thread. (Example: use a “likes” subcollection + increment a field.)
     func toggleLike(groupID: String, threadID: String) {
         guard let currentUser = Auth.auth().currentUser else { return }
         let db = Firestore.firestore()
@@ -134,6 +157,36 @@ class GroupDetailViewModel: ObservableObject {
                         print("⚠️ Error liking thread: \(batchError.localizedDescription)")
                     }
                 }
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    /// Delete the thread document at /groups/{groupID}/threads/{threadID}, but only if
+    /// the signed‐in user UID exactly equals the group.ownerID. Otherwise print a warning.
+    func deleteThread(groupID: String, threadID: String) {
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            print("⚠️ deleteThread called but no user is signed in.")
+            return
+        }
+        guard let ownerID = group?.ownerID, currentUID == ownerID else {
+            print("⚠️ deleteThread: only owner can delete a post.")
+            return
+        }
+
+        let db = Firestore.firestore()
+        let threadRef = db
+            .collection("groups")
+            .document(groupID)
+            .collection("threads")
+            .document(threadID)
+
+        threadRef.delete { error in
+            if let error = error {
+                print("⚠️ Error deleting thread: \(error.localizedDescription)")
+            } else {
+                print("✅ Successfully deleted thread \(threadID).")
+                // The threadsListener will automatically remove it from `self.threads`
             }
         }
     }

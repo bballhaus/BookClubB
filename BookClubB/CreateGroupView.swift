@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated: Pop back to Groups page on success.
+//  Updated 6/10/25 to satisfy the new BookGroup initializer.
 //
 
 import SwiftUI
@@ -103,11 +103,11 @@ struct CreateGroupView: View {
             }
             .disabled(
                 isCreatingGroup ||
-                title.isEmpty ||
-                bookAuthor.isEmpty ||
-                imageUrl.isEmpty ||
-                moderationQuestion.isEmpty ||
-                correctAnswer.isEmpty
+                title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                bookAuthor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                imageUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                moderationQuestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                correctAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             )
         }
         .padding()
@@ -133,24 +133,30 @@ struct CreateGroupView: View {
         isCreatingGroup = true
         errorMessage = nil
 
+        // Generate a new document ID
         let newID = UUID().uuidString
         let now = Date()
 
+        // Build the new BookGroup, including:
+        // - ownerID = currentUser.uid
+        // - moderatorIDs = [currentUser.uid]
+        // - memberIDs = [currentUser.uid]
         let newGroup = BookGroup(
             id: newID,
-            title: title,
-            bookAuthor: bookAuthor,
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            bookAuthor: bookAuthor.trimmingCharacters(in: .whitespacesAndNewlines),
+            imageUrl: imageUrl.trimmingCharacters(in: .whitespacesAndNewlines),
             ownerID: currentUser.uid,
-            imageUrl: imageUrl,
-            moderationQuestion: moderationQuestion,
-            correctAnswer: correctAnswer,
+            moderatorIDs: [currentUser.uid],
             memberIDs: [currentUser.uid],
+            moderationQuestion: moderationQuestion.trimmingCharacters(in: .whitespacesAndNewlines),
+            correctAnswer: correctAnswer.trimmingCharacters(in: .whitespacesAndNewlines),
             createdAt: now,
             updatedAt: now
         )
 
         let db = Firestore.firestore()
-        db.collection("groups").document(newID).setData(newGroup.asDictionary()) { err in
+        db.collection("groups").document(newID).setData(newGroup.toDictionary()) { err in
             DispatchQueue.main.async {
                 self.isCreatingGroup = false
                 if let err = err {
@@ -161,16 +167,6 @@ struct CreateGroupView: View {
                     dismiss()
                 }
             }
-        }
-    }
-}
-
-// MARK: – Preview
-
-struct CreateGroupView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-            CreateGroupView()
         }
     }
 }

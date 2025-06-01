@@ -2,72 +2,85 @@
 //  BookGroup.swift
 //  BookClubB
 //
-//  Created by Brooke Ballhaus on 5/31/25.
+//  Created by YourName on 5/30/25.
+//  Updated 6/10/25 to add `moderatorIDs`, `moderationQuestion`, `correctAnswer`.
 //
 
 import Foundation
 import FirebaseFirestore
 
 struct BookGroup: Identifiable {
-    var id: String                 // Firestore document ID
-    let title: String              // The book’s title
-    let bookAuthor: String         // The book’s author
-    let ownerID: String            // UID of the user who created this group
-    let imageUrl: String           // URL to the cover image
-    let moderationQuestion: String // A question new joiners must answer
-    let correctAnswer: String      // The “right answer” for that question
-    var memberIDs: [String]        // UIDs of all members
+    let id: String
+    let title: String
+    let bookAuthor: String
+    let imageUrl: String
+    let ownerID: String
+
+    // NEW: an array of UIDs for every moderator of this group
+    let moderatorIDs: [String]
+
+    // The list of all member UIDs
+    var memberIDs: [String]
+
+    // When someone tries to join, they must answer this question:
+    let moderationQuestion: String
+
+    // The correct answer (case‐insensitive) to join
+    let correctAnswer: String
+
     let createdAt: Date
-    var updatedAt: Date?           // Now mutable so we can update it when someone joins
+    let updatedAt: Date
 
-    /// Computed property to get the current number of members
-    var memberCount: Int {
-        return memberIDs.count
-    }
-
-    /// Convert Firestore dictionary → BookGroup
+    /// Parse a Firestore document into BookGroup.
     static func fromDictionary(_ dict: [String: Any], id: String) -> BookGroup? {
         guard
-            let title = dict["title"] as? String,
-            let bookAuthor = dict["bookAuthor"] as? String,
-            let ownerID = dict["ownerID"] as? String,
-            let imageUrl = dict["imageUrl"] as? String,
-            let moderationQuestion = dict["moderationQuestion"] as? String,
-            let correctAnswer = dict["correctAnswer"] as? String,
-            let memberIDs = dict["memberIDs"] as? [String],
-            let createdTS = dict["createdAt"] as? Timestamp
+            let title              = dict["title"]               as? String,
+            let bookAuthor         = dict["bookAuthor"]          as? String,
+            let imageUrl           = dict["imageUrl"]            as? String,
+            let ownerID            = dict["ownerID"]             as? String,
+            let memberIDs          = dict["memberIDs"]           as? [String],
+            let moderationQuestion = dict["moderationQuestion"]  as? String,
+            let correctAnswer      = dict["correctAnswer"]       as? String,
+            let createdTS          = dict["createdAt"]           as? Timestamp,
+            let updatedTS          = dict["updatedAt"]           as? Timestamp
         else {
             return nil
         }
-        let updatedTS = dict["updatedAt"] as? Timestamp
+
+        // Read "moderatorIDs" (if missing, default to empty array)
+        let modIDs = dict["moderatorIDs"] as? [String] ?? []
+
+        let createdAt = createdTS.dateValue()
+        let updatedAt = updatedTS.dateValue()
+
         return BookGroup(
             id: id,
             title: title,
             bookAuthor: bookAuthor,
-            ownerID: ownerID,
             imageUrl: imageUrl,
+            ownerID: ownerID,
+            moderatorIDs: modIDs,
+            memberIDs: memberIDs,
             moderationQuestion: moderationQuestion,
             correctAnswer: correctAnswer,
-            memberIDs: memberIDs,
-            createdAt: createdTS.dateValue(),
-            updatedAt: updatedTS?.dateValue()
+            createdAt: createdAt,
+            updatedAt: updatedAt
         )
     }
-}
 
-extension BookGroup {
-    /// Firestore dictionary representation
-    func asDictionary() -> [String: Any] {
+    /// Convert this BookGroup to a Firestore‐compatible dictionary.
+    func toDictionary() -> [String: Any] {
         return [
-            "title": title,
-            "bookAuthor": bookAuthor,
-            "ownerID": ownerID,
-            "imageUrl": imageUrl,
+            "title":              title,
+            "bookAuthor":         bookAuthor,
+            "imageUrl":           imageUrl,
+            "ownerID":            ownerID,
+            "moderatorIDs":       moderatorIDs,
+            "memberIDs":          memberIDs,
             "moderationQuestion": moderationQuestion,
-            "correctAnswer": correctAnswer,
-            "memberIDs": memberIDs,
-            "createdAt": Timestamp(date: createdAt),
-            "updatedAt": updatedAt != nil ? Timestamp(date: updatedAt!) : NSNull()
+            "correctAnswer":      correctAnswer,
+            "createdAt":          Timestamp(date: createdAt),
+            "updatedAt":          Timestamp(date: updatedAt)
         ]
     }
 }

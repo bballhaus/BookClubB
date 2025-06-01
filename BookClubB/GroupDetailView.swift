@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated 6/4/25: show ownerUsername and fix thread display.
+//  Updated 6/10/25 to allow group‐owners to delete posts and show all mods.
 //
 
 import SwiftUI
@@ -15,13 +15,13 @@ struct GroupDetailView: View {
 
     @StateObject private var viewModel = GroupDetailViewModel()
 
-    // Controls “Add Post” sheet (members only)
+    // “Add Post” sheet for members
     @State private var showingNewThreadSheet: Bool = false
 
-    // Controls “Join Group” sheet (non-members)
+    // “Join Group” sheet for non-members
     @State private var showJoinPrompt: Bool = false
 
-    // Bindings for the “AnswerGroupQuestionView”
+    // Bindings for the join‐question sheet
     @State private var answerText: String = ""
     @State private var answerErrorMessage: String = ""
     @State private var showAnswerErrorAlert: Bool = false
@@ -29,7 +29,7 @@ struct GroupDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── HEADER: Image + Title + Book Author + Mod Info ────────────
+            // ── HEADER: Banner + Title + Book Author + Members + Mods ──
             if let group = viewModel.group {
                 VStack(alignment: .leading, spacing: 12) {
                     // 1) Banner image
@@ -75,7 +75,7 @@ struct GroupDetailView: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
 
-                    // 4) Row: up to 3 member circles + “X members” + Spacer + “Mod: ownerUsername”
+                    // 4) Row: up to 3 member circles + “X members” + Spacer + “Mods: …”
                     HStack(spacing: 8) {
                         ForEach(Array(group.memberIDs.prefix(3)), id: \.self) { _ in
                             Circle()
@@ -88,9 +88,8 @@ struct GroupDetailView: View {
 
                         Spacer()
 
-                        // Always show “Mod: <ownerUsername>” once fetched
-                        if !viewModel.ownerUsername.isEmpty {
-                            Text("Mod: \(viewModel.ownerUsername)")
+                        if !viewModel.moderatorUsernames.isEmpty {
+                            Text("Mods: \(viewModel.moderatorUsernames.joined(separator: ", "))")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -100,7 +99,7 @@ struct GroupDetailView: View {
                     Divider()
                 }
             } else {
-                // Spinner while group is loading
+                // Loading spinner while `viewModel.group` is nil
                 VStack {
                     ProgressView("Loading group…")
                         .padding(.top, 40)
@@ -109,7 +108,7 @@ struct GroupDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // ── THREAD LIST (visible to all) ────────────────────────────────
+            // ── THREAD LIST (visible to everyone) ────────────────────────────
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(viewModel.threads) { thread in
@@ -127,9 +126,8 @@ struct GroupDetailView: View {
 
             Divider()
 
-            // ── BOTTOM BUTTON AREA ───────────────────────────────────────────
+            // ── BOTTOM BUTTON AREA: “Add Post” if member, else “Join Group” ──
             if viewModel.isMember {
-                // Members see “Add Post”
                 Button(action: {
                     showingNewThreadSheet = true
                 }) {
@@ -147,7 +145,6 @@ struct GroupDetailView: View {
                     NewThreadView(groupID: groupID)
                 }
             } else {
-                // Non-members see “Join Group to Post & Like”
                 Button(action: {
                     showJoinPrompt = true
                 }) {
@@ -162,7 +159,7 @@ struct GroupDetailView: View {
                         .padding(.bottom, 16)
                 }
                 .sheet(isPresented: $showJoinPrompt) {
-                    // Safe to force‐unwrap because group != nil here
+                    // We only present this when group != nil, so force‐unwrap is safe:
                     AnswerGroupQuestionView(
                         group: viewModel.group!,
                         answerText: $answerText,
@@ -192,9 +189,9 @@ struct GroupDetailView: View {
         }
     }
 
-    // ───────────────────────────────────────────────────────────────────────────
-    /// Called after the user correctly answers the join‐question.
-    /// Adds currentUID to Firestore “groups/{groupID}.memberIDs” and re‐binds.
+    // ─────────────────────────────────────────────────────────────────────────
+    /// Called when the user submits the correct answer in AnswerGroupQuestionView.
+    /// Adds their UID to “memberIDs” in Firestore and re‐binds.
     private func joinAfterAnswer() {
         guard let group = viewModel.group else {
             showJoinPrompt = false
@@ -219,7 +216,7 @@ struct GroupDetailView: View {
                 answerErrorMessage = "Failed to join: \(err.localizedDescription)"
                 showAnswerErrorAlert = true
             } else {
-                // Immediately re-bind so isMember becomes true
+                // Re-bind so that isMember flips to true
                 viewModel.bind(to: groupID)
                 showJoinPrompt = false
             }
@@ -227,21 +224,32 @@ struct GroupDetailView: View {
     }
 }
 
-/// ───────────────────────────────────────────────────────────────────────────────
-/// A single “thread” row. Shows authorID, timestamp, content, like/reply icons.
-/// If isMember == false, the heart is gray and disabled.
-/// ───────────────────────────────────────────────────────────────────────────────
+/// ─────────────────────────────────────────────────────────────────────────────
+/// A single “thread” row. Shows authorID, timestamp, content, like/reply icons,
+/// and (if the current user is the group owner) a red “trash” button
+/// that calls `viewModel.deleteThread(...)`.
+/// ─────────────────────────────────────────────────────────────────────────────
 struct ThreadRowView: View {
     let groupID: String
     let thread: GroupThread
     @ObservedObject var viewModel: GroupDetailViewModel
     let isMember: Bool
 
+    /// True if the currently signed-in user’s UID equals the group’s ownerID
+    private var isOwner: Bool {
+        guard let currentUID = Auth.auth().currentUser?.uid,
+              let ownerUID = viewModel.group?.ownerID
+        else {
+            return false
+        }
+        return currentUID == ownerUID
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // ── Author + Timestamp ──
+            // ── Author + Timestamp + (Owner‐only “trash” button) ──
             HStack(spacing: 12) {
-                // Placeholder circle (no avatarUrl on GroupThread)
+                // Placeholder circle for an avatar (GroupThread has no avatarUrl)
                 Circle()
                     .fill(Color.gray.opacity(0.3))
                     .frame(width: 40, height: 40)
@@ -254,15 +262,29 @@ struct ThreadRowView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+
                 Spacer()
+
+                // Only show a red trash icon if this user is the group’s owner:
+                if isOwner {
+                    Button {
+                        viewModel.deleteThread(groupID: groupID, threadID: thread.id)
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundColor(.red)
+                            .font(.title3)
+                    }
+                    // Use a borderless style so it doesn’t hijack row taps:
+                    .buttonStyle(BorderlessButtonStyle())
+                }
             }
 
-            // ── Thread content ──
+            // ── Thread Content ──
             Text(thread.content)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // ── Like & Reply icons ──
+            // ── Like & Reply Icons ──
             HStack(spacing: 24) {
                 Button {
                     if isMember {
@@ -303,11 +325,11 @@ struct ThreadRowView: View {
     }
 }
 
-/// ───────────────────────────────────────────────────────────────────────────────
-/// A sheet view that asks the user the group’s moderation question.
-/// If the trimmed + lowercased answer matches `group.correctAnswer`, calls `onCorrectAnswer()`.
-/// Otherwise, shows an “Incorrect Answer” alert.
-/// ───────────────────────────────────────────────────────────────────────────────
+/// ─────────────────────────────────────────────────────────────────────────────
+/// A sheet that asks the group’s moderation question. If the user’s trimmed,
+/// lowercased answer matches `group.correctAnswer`, calls `onCorrectAnswer()`.
+/// Otherwise, shows an alert.
+/// ─────────────────────────────────────────────────────────────────────────────
 fileprivate struct AnswerGroupQuestionView: View {
     let group: BookGroup
 
