@@ -3,8 +3,8 @@
 //  BookClubB
 //
 //  Created by YourName on 6/1/25.
-//  Updated 6/2/25 to simply call `dismiss()` when done,
-//  so that we stay on ThreadDetailView after replying.
+//  Updated 6/2/25 to add in-view “like” toggling so you can like a thread
+//  directly from ThreadDetailView.
 //
 
 import SwiftUI
@@ -15,15 +15,27 @@ struct ThreadDetailView: View {
     let groupID: String
     let thread: ThreadModel
 
+    // MARK: — Local, mutable “like” state derived from the passed-in ThreadModel
+    @State private var isLikedByCurrentUser: Bool
+    @State private var likesCount: Int
+
     @StateObject private var viewModel = ThreadDetailViewModel()
     @State private var showingNewReplySheet: Bool = false
     @State private var isMember: Bool = false
 
     @Environment(\.dismiss) private var dismissView
 
+    // Initialize @State variables from the incoming `thread`
+    init(groupID: String, thread: ThreadModel) {
+        self.groupID = groupID
+        self.thread = thread
+        _isLikedByCurrentUser = State(initialValue: thread.isLikedByCurrentUser)
+        _likesCount            = State(initialValue: thread.likesCount)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Parent thread’s header info
+            // ── Parent thread’s header info ──
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
                     AsyncImage(url: URL(string: thread.avatarUrl)) { phase in
@@ -68,13 +80,30 @@ struct ThreadDetailView: View {
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
 
+                // ── Replace static heart + count with a tappable Button ──
                 HStack(spacing: 16) {
-                    Image(systemName: "heart")
-                    Text("\(thread.likesCount)")
+                    Button(action: toggleLike) {
+                        if isLikedByCurrentUser {
+                            Image(systemName: "heart.fill")
+                                .font(.title3)
+                                .foregroundColor(.red)
+                        } else {
+                            Image(systemName: "heart")
+                                .font(.title3)
+                                .foregroundColor(.gray)
+                        }
+                    }
+
+                    Text("\(likesCount)")
                         .font(.subheadline)
+
                     Image(systemName: "bubble.right")
+                        .font(.title3)
+                        .foregroundColor(.gray)
+
                     Text("\(thread.repliesCount)")
                         .font(.subheadline)
+
                     Spacer()
                 }
                 .foregroundColor(.gray)
@@ -83,7 +112,7 @@ struct ThreadDetailView: View {
             }
             .padding()
 
-            // Replies list
+            // ── Replies list ──
             if let error = viewModel.errorMessage {
                 Text("❌ \(error)")
                     .foregroundColor(.red)
@@ -103,7 +132,7 @@ struct ThreadDetailView: View {
 
             Divider()
 
-            // “Add Reply” button (only if the user is a member)
+            // ── “Add Reply” button (only if the user is a member) ──
             if isMember {
                 Button(action: {
                     showingNewReplySheet = true
@@ -130,7 +159,10 @@ struct ThreadDetailView: View {
         .navigationTitle("Thread")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            // Start listening for replies
             viewModel.bind(toGroupID: groupID, threadID: thread.id)
+
+            // Check membership so we know whether to show “Add Reply”
             if let currentUser = Auth.auth().currentUser {
                 let db = Firestore.firestore()
                 db.collection("groups")
@@ -147,9 +179,66 @@ struct ThreadDetailView: View {
             viewModel.detachListeners()
         }
     }
+
+    // ───────────────────────────────────────────────────────────────────────────
+    /// Toggle like/unlike for the current user on this thread,
+    /// mirroring exactly the batch logic from GroupDetailViewModel.
+    private func toggleLike() {
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            return
+        }
+        let db = Firestore.firestore()
+        let threadRef = db
+            .collection("groups")
+            .document(groupID)
+            .collection("threads")
+            .document(thread.id)
+        let likeDocRef = threadRef
+            .collection("likes")
+            .document(currentUID)
+
+        likeDocRef.getDocument { snapshot, error in
+            if let snapshot = snapshot, snapshot.exists {
+                // Already liked → Unlike
+                let batch = db.batch()
+                batch.deleteDocument(likeDocRef)
+                batch.updateData([
+                    "likesCount": FieldValue.increment(Int64(-1))
+                ], forDocument: threadRef)
+
+                batch.commit { batchError in
+                    if let batchError = batchError {
+                        print("Error unliking thread: \(batchError.localizedDescription)")
+                    } else {
+                        // Immediately update local state so UI reflects the change
+                        isLikedByCurrentUser = false
+                        likesCount -= 1
+                    }
+                }
+            } else {
+                // Not yet liked → Like
+                let batch = db.batch()
+                batch.setData([ "createdAt": Timestamp(date: Date()) ], forDocument: likeDocRef)
+                batch.updateData([
+                    "likesCount": FieldValue.increment(Int64(1))
+                ], forDocument: threadRef)
+
+                batch.commit { batchError in
+                    if let batchError = batchError {
+                        print("Error liking thread: \(batchError.localizedDescription)")
+                    } else {
+                        // Immediately update local state so UI reflects the change
+                        isLikedByCurrentUser = true
+                        likesCount += 1
+                    }
+                }
+            }
+        }
+    }
 }
 
-// ReplyRowView (unchanged from before)
+// ───────────────────────────────────────────────────────────────────────────────
+/// A single “reply” row. (Unchanged from before.)
 struct ReplyRowView: View {
     let reply: Reply
 
