@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated 6/2/25 to pop back to GroupPageView after posting a new thread.
+//  Updated 6/3/25 to navigate to ThreadDetailView when tapping the reply button.
 //
 
 import SwiftUI
@@ -13,27 +13,21 @@ import FirebaseFirestore
 struct GroupDetailView: View {
     let groupID: String
 
-    /// Owns the group + threads listeners
+    /// ViewModel listening to “group” document + its “threads” subcollection
     @StateObject private var viewModel = GroupDetailViewModel()
 
-    /// Toggle to present the “New Thread” sheet
+    /// Controls presentation of the “New Thread” sheet
     @State private var showingNewThreadSheet: Bool = false
-
-    /// Set to true when NewThreadView reports a successful post
-    @State private var didPostThread: Bool = false
 
     @State private var answer: String = ""
     @State private var showJoinError: Bool = false
     @State private var joinErrorMessage: String?
 
-    /// Environment dismiss to pop GroupDetailView
-    @Environment(\.dismiss) private var dismissGroupDetail
-
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // ── If group data has loaded, show header & content ──
+            // ── If the group data has loaded, display it ──
             if let group = viewModel.group {
-                // ── Header with title, author, and member count ──
+                // ── Header: title, author, member count ──
                 VStack(alignment: .leading, spacing: 8) {
                     Text(group.title)
                         .font(.largeTitle)
@@ -57,7 +51,7 @@ struct GroupDetailView: View {
                 }
                 .padding(.horizontal)
 
-                // ── Moderation question if user is not yet a member ──
+                // ── If the current user is not yet a member, show moderation question ──
                 if !viewModel.isMember && !viewModel.hasAnswered {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Moderation Question:")
@@ -86,37 +80,29 @@ struct GroupDetailView: View {
                     .padding(.horizontal)
                 }
 
-                // ── “Posts” section (only visible if user is a member) ──
+                // ── If the user is a member, show “Posts” (threads) ──
                 if viewModel.isMember {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Posts")
                             .font(.headline)
                             .padding(.horizontal)
 
-                        // ── Scrollable list of existing threads ──
+                        // ── List of existing threads ──
                         ScrollView {
                             LazyVStack(spacing: 16) {
                                 ForEach(viewModel.threads) { thread in
-                                    NavigationLink(
-                                        destination: ThreadDetailView(
-                                            groupID: groupID,
-                                            thread: thread
-                                        )
-                                    ) {
-                                        ThreadView(
-                                            groupID: groupID,
-                                            thread: thread,
-                                            viewModel: viewModel
-                                        )
-                                        .padding(.horizontal)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
+                                    ThreadView(
+                                        groupID: groupID,
+                                        thread: thread,
+                                        viewModel: viewModel
+                                    )
+                                    .padding(.horizontal)
                                 }
                             }
                             .padding(.vertical)
                         }
 
-                        // ── “Add Post” button at the bottom ──
+                        // ── “Add Post” button ──
                         Button(action: {
                             showingNewThreadSheet = true
                         }) {
@@ -131,20 +117,11 @@ struct GroupDetailView: View {
                                 .padding(.bottom, 16)
                         }
                         .sheet(isPresented: $showingNewThreadSheet) {
-                            // Pass a closure to be called when a new thread is posted:
-                            NewThreadView(
-                                groupID: groupID,
-                                onThreadPosted: {
-                                    // 1) Dismiss the sheet
-                                    showingNewThreadSheet = false
-                                    // 2) Trigger the pop of GroupDetailView
-                                    didPostThread = true
-                                }
-                            )
+                            NewThreadView(groupID: groupID)
                         }
                     }
                 }
-                // ── If user has answered but is not yet approved ──
+                // ── If the user has already answered but is not yet approved ──
                 else if viewModel.hasAnswered {
                     Text("Your answer was submitted. Waiting for approval.")
                         .italic()
@@ -155,7 +132,7 @@ struct GroupDetailView: View {
 
                 Spacer()
             }
-            // ── Show a loading indicator if group data is not yet available ──
+            // ── If group data is not yet available, show a loading indicator ──
             else {
                 VStack {
                     ProgressView()
@@ -177,16 +154,10 @@ struct GroupDetailView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
-        // 3) When didPostThread flips to true, pop GroupDetailView
-        .onChange(of: didPostThread) { posted in
-            if posted {
-                dismissGroupDetail()
-            }
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────
-    /// Called when the user submits a moderation answer to join the group
+    /// Called when the user submits a moderation answer to join
     private func submitAnswer() {
         guard let currentUser = Auth.auth().currentUser else {
             joinErrorMessage = "You must be signed in to join."
@@ -213,7 +184,7 @@ struct GroupDetailView: View {
     }
 }
 
-/// Renders a single post/thread, including a tappable heart to like
+/// Renders a single post/thread row, including tappable like & reply buttons
 struct ThreadView: View {
     let groupID: String
     let thread: ThreadModel
@@ -222,7 +193,7 @@ struct ThreadView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // ── Poster info (avatar + username + timestamp) ──
+            // ── Avatar, username, timestamp ──
             HStack(spacing: 12) {
                 AsyncImage(url: URL(string: thread.avatarUrl)) { phase in
                     switch phase {
@@ -264,12 +235,12 @@ struct ThreadView: View {
                 Spacer()
             }
 
-            // ── The thread’s content text ──
+            // ── Thread content text ──
             Text(thread.content)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // ── Icons row with a tappable heart ──
+            // ── Only “like” and “reply” icons ──
             HStack(spacing: 24) {
                 Button(action: {
                     viewModel.toggleLike(groupID: groupID, threadID: thread.id)
@@ -285,17 +256,25 @@ struct ThreadView: View {
                     }
                 }
 
-                Image(systemName: "bubble.right")
-                Image(systemName: "arrow.2.squarepath")
-                Image(systemName: "paperplane")
+                // Wrap reply icon in a NavigationLink to go to ThreadDetailView
+                NavigationLink(
+                    destination: ThreadDetailView(
+                        groupID: groupID,
+                        thread: thread
+                    )
+                ) {
+                    Image(systemName: "bubble.right")
+                        .font(.title3)
+                        .foregroundColor(.gray)
+                }
             }
             .font(.title3)
 
-            // ── Footer with replies & likes count ──
+            // ── Footer with “likes” first, then “replies” ──
             HStack(spacing: 8) {
-                Text("\(thread.repliesCount) replies")
-                Text("·")
                 Text("\(thread.likesCount) likes")
+                Text("·")
+                Text("\(thread.repliesCount) replies")
             }
             .font(.caption)
             .foregroundColor(.secondary)

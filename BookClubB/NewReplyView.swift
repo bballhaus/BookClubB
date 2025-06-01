@@ -2,7 +2,9 @@
 //  NewReplyView.swift
 //  BookClubB
 //
-//  Updated 6/1/25 to increment repliesCount on the parent thread.
+//  Created by YourName on 6/1/25.
+//  Updated 6/2/25 to simply call `dismiss()` when done,
+//  so that we stay on ThreadDetailView after replying.
 //
 
 import SwiftUI
@@ -15,10 +17,7 @@ struct NewReplyView: View {
     let groupID: String
     let threadID: String
 
-    /// Called when the reply was successfully posted (so the parent view can pop).
-    let onReplyPosted: () -> Void
-
-    // Fallback avatar (you can point this to a real placeholder image URL)
+    // Fallback avatar (any placeholder URL)
     private let defaultAvatar = "https://example.com/default-avatar.png"
 
     @State private var replyContent: String = ""
@@ -28,6 +27,7 @@ struct NewReplyView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 16) {
+                // TextEditor for typing the reply content
                 TextEditor(text: $replyContent)
                     .border(Color.gray.opacity(0.4), width: 1)
                     .frame(minHeight: 150)
@@ -77,10 +77,12 @@ struct NewReplyView: View {
     }
 
     private func submitReply() {
+        // Ensure a user is signed in
         guard let currentUser = Auth.auth().currentUser else {
             errorMessage = "You must be signed in to reply."
             return
         }
+
         isSubmitting = true
         errorMessage = nil
 
@@ -96,7 +98,7 @@ struct NewReplyView: View {
             .collection("threads")
             .document(threadID)
             .collection("replies")
-            .document() // Auto‐generated ID
+            .document() // auto‐ID
 
         let now = Date()
         let replyData: [String: Any] = [
@@ -121,23 +123,29 @@ struct NewReplyView: View {
                 .document(groupID)
                 .collection("threads")
                 .document(threadID)
-
             threadRef.updateData([
                 "repliesCount": FieldValue.increment(Int64(1))
             ]) { incErr in
                 DispatchQueue.main.async {
                     self.isSubmitting = false
-
                     if let incErr = incErr {
-                        // Even if increment fails, we already wrote the reply—so just show an error
+                        // We still dismiss the sheet even if increment fails
                         self.errorMessage = "Reply saved, but failed to update count: \(incErr.localizedDescription)"
-                    } else {
-                        // 3) On completely successful flow, dismiss the sheet and notify parent
-                        dismiss()
-                        self.onReplyPosted()
                     }
+                    // Dismiss the sheet so we remain on ThreadDetailView
+                    dismiss()
                 }
             }
         }
+    }
+}
+
+// MARK: - Preview
+struct NewReplyView_Previews: PreviewProvider {
+    static var previews: some View {
+        NewReplyView(
+            groupID: "SAMPLE_GROUP",
+            threadID: "SAMPLE_THREAD"
+        )
     }
 }

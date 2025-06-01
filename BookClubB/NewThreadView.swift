@@ -3,7 +3,8 @@
 //  BookClubB
 //
 //  Created by YourName on 6/1/25.
-//  Updated 6/2/25 to accept an `onThreadPosted` closure.
+//  Updated 6/2/25 to simply call `dismiss()` when done,
+//  so that we stay on GroupDetailView after posting.
 //
 
 import SwiftUI
@@ -15,10 +16,7 @@ struct NewThreadView: View {
 
     let groupID: String
 
-    /// Called when the thread was successfully posted
-    let onThreadPosted: () -> Void
-
-    // Fallback avatar URL (any placeholder you like)
+    // Fallback avatar URL (any placeholder image)
     private let defaultAvatar = "https://example.com/default-avatar.png"
 
     @State private var postContent: String = ""
@@ -80,7 +78,7 @@ struct NewThreadView: View {
     }
 
     private func submitThread() {
-        // 1) Ensure a user is signed in
+        // Ensure a user is signed in
         guard let currentUser = Auth.auth().currentUser else {
             errorMessage = "You must be signed in to post."
             return
@@ -97,7 +95,7 @@ struct NewThreadView: View {
             .collection("groups")
             .document(groupID)
             .collection("threads")
-            .document() // auto-generated ID
+            .document() // auto‐ID
 
         let now = Date()
         let threadData: [String: Any] = [
@@ -115,9 +113,8 @@ struct NewThreadView: View {
                 if let err = err {
                     self.errorMessage = "Failed to post: \(err.localizedDescription)"
                 } else {
-                    // 2) Successfully created thread → dismiss the sheet & inform parent
+                    // Dismiss the sheet so we stay on GroupDetailView
                     dismiss()
-                    onThreadPosted()
                 }
             }
         }
@@ -127,9 +124,6 @@ struct NewThreadView: View {
 // MARK: - Preview
 struct NewThreadView_Previews: PreviewProvider {
     static var previews: some View {
-        NewThreadView(
-            groupID: "SAMPLE_GROUP_ID",
-            onThreadPosted: { print("Thread posted!") }
-        )
+        NewThreadView(groupID: "SAMPLE_GROUP_ID")
     }
 }

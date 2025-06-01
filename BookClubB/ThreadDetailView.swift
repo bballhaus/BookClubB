@@ -3,7 +3,8 @@
 //  BookClubB
 //
 //  Created by YourName on 6/1/25.
-//  Updated 6/1/25 to accept ThreadModel and pop back after reply.
+//  Updated 6/2/25 to simply call `dismiss()` when done,
+//  so that we stay on ThreadDetailView after replying.
 //
 
 import SwiftUI
@@ -16,7 +17,6 @@ struct ThreadDetailView: View {
 
     @StateObject private var viewModel = ThreadDetailViewModel()
     @State private var showingNewReplySheet: Bool = false
-    @State private var didPostReply: Bool = false
     @State private var isMember: Bool = false
 
     @Environment(\.dismiss) private var dismissView
@@ -103,7 +103,7 @@ struct ThreadDetailView: View {
 
             Divider()
 
-            // “Add Reply” button (visible only if user is a member)
+            // “Add Reply” button (only if the user is a member)
             if isMember {
                 Button(action: {
                     showingNewReplySheet = true
@@ -119,14 +119,10 @@ struct ThreadDetailView: View {
                         .padding(.bottom, 20)
                 }
                 .sheet(isPresented: $showingNewReplySheet) {
+                    // Present NewReplyView; after it calls dismiss(), we stay here
                     NewReplyView(
                         groupID: groupID,
-                        threadID: thread.id,
-                        onReplyPosted: {
-                            // Dismiss sheet, then pop ThreadDetailView
-                            showingNewReplySheet = false
-                            didPostReply = true
-                        }
+                        threadID: thread.id
                     )
                 }
             }
@@ -145,11 +141,6 @@ struct ThreadDetailView: View {
                         self.isMember = members.contains(currentUser.uid)
                     }
                   }
-            }
-        }
-        .onChange(of: didPostReply) { posted in
-            if posted {
-                dismissView()
             }
         }
         .onDisappear {
