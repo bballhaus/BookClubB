@@ -9,7 +9,6 @@ import SwiftUI
 import FirebaseAuth
 
 struct CreateAccountView: View {
-    // 1) Read the AuthViewModel from the environment
     @EnvironmentObject var authVM: AuthViewModel
 
     @State private var email: String = ""
@@ -51,11 +50,9 @@ struct CreateAccountView: View {
                 .padding(.horizontal, 32)
                 .padding(.bottom, 24)
 
-            // MARK: – Continue Button (Email)
+
             Button(action: {
-                // Example placeholder action:
-                // In a real flow you would send a magic link or call Firebase "createUser"
-                authVM.signInAnonymously()
+                authVM.createUser(email: email, password: "yourDefaultPasswordHere")
             }) {
                 Text("Continue")
                     .foregroundColor(.white)
@@ -165,3 +162,5 @@ struct CreateAccountView_Previews: PreviewProvider {
             .environmentObject(AuthViewModel())
     }
 }
+
+

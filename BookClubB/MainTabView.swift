@@ -2,37 +2,43 @@
 //  MainTabView.swift
 //  BookClubB
 //
-//  Created by Brooke Ballhaus on 5/31/25.
+//  Created by Irene Lin on 5/31/25.
 //
 
 import SwiftUI
 
 struct MainTabView: View {
+    @State private var selectedTab = 0
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
+            
+            // MARK: - Home Tab
             NavigationView {
                 HomeView()
             }
             .tabItem {
-                Image(systemName: "house.fill")
-                Text("Home")
+                Label("Home", systemImage: "house.fill")
             }
+            .tag(0)
 
+            // MARK: - Groups Tab
             NavigationView {
                 GroupPageView()
             }
             .tabItem {
-                Image(systemName: "person.3.fill")
-                Text("Groups")
+                Label("Groups", systemImage: "person.3.fill")
             }
+            .tag(1)
 
+            // MARK: - Profile Tab
             NavigationView {
                 ProfileView()
             }
             .tabItem {
-                Image(systemName: "person.crop.circle.fill")
-                Text("Profile")
+                Label("Profile", systemImage: "person.crop.circle.fill")
             }
+            .tag(2)
         }
     }
 }

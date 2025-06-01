@@ -8,9 +8,7 @@ import Foundation
 import FirebaseAuth
 import Combine
 
-/// A very simple authentication‐state view model that publishes
-/// whether there is a `currentUser`. You can expand this later to
-/// support sign‐in / sign‐out logic as needed.
+
 class AuthViewModel: ObservableObject {
     // Published property to track if a user is signed in
     @Published var user: FirebaseAuth.User?
@@ -31,7 +29,6 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    /// Example sign‐in function (you can wire this into a "Continue" button)
     func signInAnonymously() {
         Auth.auth().signInAnonymously { result, error in
             if let error = error {
@@ -42,8 +39,20 @@ class AuthViewModel: ObservableObject {
             print("Anonymous sign‐in succeeded: \(String(describing: result?.user.uid))")
         }
     }
+    
+    func createUser(email: String, password: String) {
+        Auth.auth().createUser(withEmail: email, password: password) { result, error in
+            if let error = error {
+                print("Error creating user: \(error.localizedDescription)")
+                return
+            }
 
-    /// Example sign‐out function
+            self.user = result?.user
+            print("User created: \(result?.user.email ?? "")")
+        }
+    }
+
+    
     func signOut() {
         do {
             try Auth.auth().signOut()
