@@ -10,7 +10,7 @@
 		E75ACFAF2DEBA25700EB81F0 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFAE2DEBA25700EB81F0 /* FirebaseAuth */; };
 		E75ACFB12DEBA25700EB81F0 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFB02DEBA25700EB81F0 /* FirebaseCore */; };
 		E75ACFB32DEBA25700EB81F0 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFB22DEBA25700EB81F0 /* FirebaseFirestore */; };
-		E75ACFE92DEBF6C100EB81F0 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFE82DEBF6C100EB81F0 /* FirebaseStorage */; };
+		FC1492FE2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = FC1492FD2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -39,22 +39,16 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E75ACF6C2DEB98AF00EB81F0 /* BookClubB */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = BookClubB;
 			sourceTree = "<group>";
 		};
 		E75ACF7D2DEB98B100EB81F0 /* BookClubBTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = BookClubBTests;
 			sourceTree = "<group>";
 		};
 		E75ACF872DEB98B100EB81F0 /* BookClubBUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = BookClubBUITests;
 			sourceTree = "<group>";
 		};
@@ -66,7 +60,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E75ACFB12DEBA25700EB81F0 /* FirebaseCore in Frameworks */,
-				E75ACFE92DEBF6C100EB81F0 /* FirebaseStorage in Frameworks */,
+				FC1492FE2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community in Frameworks */,
 				E75ACFAF2DEBA25700EB81F0 /* FirebaseAuth in Frameworks */,
 				E75ACFB32DEBA25700EB81F0 /* FirebaseFirestore in Frameworks */,
 			);
@@ -132,7 +126,7 @@
 				E75ACFAE2DEBA25700EB81F0 /* FirebaseAuth */,
 				E75ACFB02DEBA25700EB81F0 /* FirebaseCore */,
 				E75ACFB22DEBA25700EB81F0 /* FirebaseFirestore */,
-				E75ACFE82DEBF6C100EB81F0 /* FirebaseStorage */,
+				FC1492FD2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community */,
 			);
 			productName = BookClubB;
 			productReference = E75ACF6A2DEB98AF00EB81F0 /* BookClubB.app */;
@@ -155,6 +149,8 @@
 				E75ACF7D2DEB98B100EB81F0 /* BookClubBTests */,
 			);
 			name = BookClubBTests;
+			packageProductDependencies = (
+			);
 			productName = BookClubBTests;
 			productReference = E75ACF7A2DEB98B100EB81F0 /* BookClubBTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -176,6 +172,8 @@
 				E75ACF872DEB98B100EB81F0 /* BookClubBUITests */,
 			);
 			name = BookClubBUITests;
+			packageProductDependencies = (
+			);
 			productName = BookClubBUITests;
 			productReference = E75ACF842DEB98B100EB81F0 /* BookClubBUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -606,10 +604,9 @@
 			package = E75ACFAD2DEBA25700EB81F0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
 		};
-		E75ACFE82DEBF6C100EB81F0 /* FirebaseStorage */ = {
+		FC1492FD2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E75ACFAD2DEBA25700EB81F0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseStorage;
+			productName = "FirebaseFirestoreCombine-Community";
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

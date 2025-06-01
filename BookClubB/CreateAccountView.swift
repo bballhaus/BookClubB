@@ -12,11 +12,12 @@ struct CreateAccountView: View {
     @EnvironmentObject var authVM: AuthViewModel
 
     @State private var email: String = ""
-    @State private var password: String = "" // New state variable for password
+    @State private var password: String = ""
+    @State private var username: String = ""   // Added username state
 
     var body: some View {
         VStack(spacing: 0) {
-            // Flexible Spacer to push content down from the top, centering it vertically
+
             Spacer()
 
             // MARK: – Logo
@@ -26,19 +27,32 @@ struct CreateAccountView: View {
                 .frame(width: 200, height: 80)
                 .padding(.bottom, 32)
 
-
             VStack(spacing: 0) {
                 // Title & Subtitle
                 VStack(spacing: 8) {
                     Text("Create an account")
                         .font(.title2).bold()
+                    Text("Or log back in with your email to continue.")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
 
-                    Text("Enter your email to sign up for this app")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+        
                 }
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 24)
+
+                // Username TextField (new)
+                TextField("Username", text: $username)
+                    .autocapitalization(.none)
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
+                            .background(Color(white: 0.95))
+                            .cornerRadius(8)
+                    )
+                    .padding(.bottom, 24)
 
                 // Email TextField
                 TextField("email@domain.com", text: $email)
@@ -54,7 +68,7 @@ struct CreateAccountView: View {
                     .padding(.bottom, 24)
 
                 // Password SecureField
-                SecureField("Password", text: $password) // Secure field for password input
+                SecureField("Password", text: $password)
                     .padding(14)
                     .background(
                         RoundedRectangle(cornerRadius: 8)
@@ -62,12 +76,11 @@ struct CreateAccountView: View {
                             .background(Color(white: 0.95))
                             .cornerRadius(8)
                     )
-                    .padding(.bottom, 24) // Padding below the password field
+                    .padding(.bottom, 24)
 
-                // Continue Button
+                // Continue Button - pass username now
                 Button(action: {
-                    // Call createUser with both email and password
-                    authVM.createUser(email: email, password: password)
+                    authVM.createUser(email: email, password: password, username: username)
                 }) {
                     Text("Continue")
                         .foregroundColor(.white)
@@ -102,9 +115,7 @@ struct CreateAccountView: View {
                 .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 32)
-            
-            // A flexible spacer to push the content above it towards the top,
-            // placing all content above this spacer.
+
             Spacer()
         }
         .background(Color.white.ignoresSafeArea())
@@ -113,7 +124,6 @@ struct CreateAccountView: View {
 
 struct CreateAccountView_Previews: PreviewProvider {
     static var previews: some View {
-        // Provide a dummy AuthViewModel for preview purposes:
         CreateAccountView()
             .environmentObject(AuthViewModel())
     }

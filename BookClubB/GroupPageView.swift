@@ -16,15 +16,15 @@ struct GroupPageView: View {
     @State private var allGroups: [BookGroup] = []   // All groups fetched from Firestore
     @State private var isLoading: Bool = false       // Show spinner while fetching
     @State private var errorMessage: String? = nil   // Any fetch errors
-    
+
     // This holds whatever the user types into the search bar
     @State private var searchText: String = ""
-    
+
     // Computed property for the current user’s UID
     private var currentUserID: String {
         Auth.auth().currentUser?.uid ?? ""
     }
-    
+
     // Optional dropdown suggestions for the search bar
     private var searchSuggestions: [String] {
         let lower = searchText.lowercased()
@@ -34,7 +34,7 @@ struct GroupPageView: View {
             .prefix(5)
             .map { $0 }
     }
-    
+
     var body: some View {
         NavigationView {
             VStack {
@@ -83,34 +83,34 @@ struct GroupPageView: View {
             .onAppear(perform: fetchAllGroups)
         }
     }
-    
+
     // MARK: – Firestore Fetch
-    
+
     /// Load every document in `/groups` into `allGroups`
     private func fetchAllGroups() {
         guard Auth.auth().currentUser != nil else {
             self.errorMessage = "You must be signed in to view groups."
             return
         }
-        
+
         isLoading = true
         errorMessage = nil
-        
+
         let db = Firestore.firestore()
         db.collection("groups").getDocuments { snapshot, error in
             DispatchQueue.main.async {
                 self.isLoading = false
-                
+
                 if let error = error {
                     self.errorMessage = "Failed to load groups: \(error.localizedDescription)"
                     return
                 }
-                
+
                 guard let docs = snapshot?.documents else {
                     self.allGroups = []
                     return
                 }
-                
+
                 // Parse each document into BookGroup
                 self.allGroups = docs.compactMap { doc in
                     BookGroup.fromDictionary(doc.data(), id: doc.documentID)
@@ -129,27 +129,27 @@ struct GroupPageView: View {
 fileprivate struct DefaultGroupsView: View {
     let allGroups: [BookGroup]
     let onJoinComplete: () -> Void
-    
+
     // Required to determine which groups are “Your Groups” vs. “Other Groups”
     private var currentUserID: String {
         Auth.auth().currentUser?.uid ?? ""
     }
-    
+
     // Holds state for join button feedback
     @State private var joinInProgress: Bool = false
     @State private var showErrorAlert: Bool = false
     @State private var joinErrorMessage: String = ""
-    
+
     // “Your Groups” = user is already in memberIDs
     private var yourGroups: [BookGroup] {
         allGroups.filter { $0.memberIDs.contains(currentUserID) }
     }
-    
+
     // “Other Groups” = user is not yet a member
     private var otherGroups: [BookGroup] {
         allGroups.filter { !$0.memberIDs.contains(currentUserID) }
     }
-    
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -159,15 +159,15 @@ fileprivate struct DefaultGroupsView: View {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color(white: 0.95))
                             .frame(height: 120)
-                        
+
                         HStack(spacing: 16) {
                             Text("New Group")
                                 .font(.title2)
                                 .bold()
                                 .padding(.leading)
-                            
+
                             Spacer()
-                            
+
                             Image(systemName: "plus.circle.fill")
                                 .resizable()
                                 .scaledToFit()
@@ -177,7 +177,7 @@ fileprivate struct DefaultGroupsView: View {
                     }
                     .padding(.horizontal)
                 }
-                
+
                 // ─── “Your Groups” Section (each card is tappable) ─────
                 if !yourGroups.isEmpty {
                     SectionHeaderView(title: "Your Groups")
@@ -195,7 +195,7 @@ fileprivate struct DefaultGroupsView: View {
                         .padding(.horizontal)
                     }
                 }
-                
+
                 // ─── “Groups You Might Be Interested In” (cover + separate Join) ─
                 if !otherGroups.isEmpty {
                     SectionHeaderView(title: "Groups You Might Be Interested In")
@@ -234,7 +234,7 @@ fileprivate struct DefaultGroupsView: View {
                                                         .frame(width: 80, height: 80)
                                                 }
                                             }
-                                            
+
                                             Text(group.title)
                                                 .font(.caption)
                                                 .multilineTextAlignment(.center)
@@ -242,7 +242,7 @@ fileprivate struct DefaultGroupsView: View {
                                         }
                                     }
                                     .buttonStyle(PlainButtonStyle())
-                                    
+
                                     // 2) Join button below the cover (only if not already a member)
                                     if group.memberIDs.contains(currentUserID) {
                                         Text("Joined")
@@ -279,13 +279,13 @@ fileprivate struct DefaultGroupsView: View {
                         .padding(.horizontal)
                     }
                 }
-                
+
                 Spacer(minLength: 20)
             }
             .padding(.top)
         }
     }
-    
+
     // MARK: – Helper to join a group
     private func joinGroup(_ group: BookGroup) {
         guard let user = Auth.auth().currentUser else {
@@ -294,10 +294,10 @@ fileprivate struct DefaultGroupsView: View {
             return
         }
         joinInProgress = true
-        
+
         let db = Firestore.firestore()
         let groupRef = db.collection("groups").document(group.id)
-        
+
         groupRef.updateData([
             "memberIDs": FieldValue.arrayUnion([user.uid]),
             "updatedAt": Timestamp(date: Date())
@@ -315,25 +315,26 @@ fileprivate struct DefaultGroupsView: View {
 
 // ───────────────────────────────────────────────────────────────────────
 // MARK: – SearchResultsView
-// (Displays a vertical list of all groups whose title contains `searchText`)
+// (Displays a vertical list of all groups whose title contains `searchText`,
+//  now wrapped in a NavigationLink so each row pushes into GroupDetailView.)
 // ───────────────────────────────────────────────────────────────────────
 
 fileprivate struct SearchResultsView: View {
     let searchText: String
     let allGroups: [BookGroup]
     let onJoinComplete: () -> Void
-    
+
     // Computed property for the current user’s UID
     private var currentUserID: String {
         Auth.auth().currentUser?.uid ?? ""
     }
-    
+
     // Filtered list of groups whose titles match the search text
     private var matchingGroups: [BookGroup] {
         let lower = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return allGroups.filter { $0.title.lowercased().contains(lower) }
     }
-    
+
     var body: some View {
         VStack(alignment: .leading) {
             if matchingGroups.isEmpty {
@@ -345,11 +346,16 @@ fileprivate struct SearchResultsView: View {
                 List {
                     ForEach(matchingGroups) { group in
                         HStack {
-                            Text(group.title)
-                                .font(.body)
+                            // ① Wrap the title in a NavigationLink to the detail view
+                            NavigationLink(destination: GroupDetailView(groupID: group.id)) {
+                                Text(group.title)
+                                    .font(.body)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
                             Spacer()
-                            
-                            // If the user is already a member, show a checkmark
+
+                            // ② If the user is already a member, show a checkmark
                             if group.memberIDs.contains(currentUserID) {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.green)
@@ -369,12 +375,12 @@ fileprivate struct SearchResultsView: View {
             }
         }
     }
-    
+
     private func joinGroup(_ group: BookGroup) {
         guard let user = Auth.auth().currentUser else { return }
         let db = Firestore.firestore()
         let groupRef = db.collection("groups").document(group.id)
-        
+
         groupRef.updateData([
             "memberIDs": FieldValue.arrayUnion([user.uid]),
             "updatedAt": Timestamp(date: Date())
@@ -395,7 +401,7 @@ fileprivate struct SearchResultsView: View {
 
 fileprivate struct SectionHeaderView: View {
     let title: String
-    
+
     var body: some View {
         HStack {
             Text(title)
@@ -415,7 +421,7 @@ fileprivate struct SectionHeaderView: View {
 
 fileprivate struct GroupCardView: View {
     let group: BookGroup
-    
+
     var body: some View {
         VStack(spacing: 8) {
             AsyncImage(url: URL(string: group.imageUrl)) { phase in
@@ -446,7 +452,7 @@ fileprivate struct GroupCardView: View {
                         .frame(width: 140, height: 200)
                 }
             }
-            
+
             Text(group.title)
                 .font(.caption)
                 .multilineTextAlignment(.center)
