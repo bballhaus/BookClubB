@@ -12,143 +12,99 @@ struct CreateAccountView: View {
     @EnvironmentObject var authVM: AuthViewModel
 
     @State private var email: String = ""
+    @State private var password: String = "" // New state variable for password
 
     var body: some View {
         VStack(spacing: 0) {
+            // Flexible Spacer to push content down from the top, centering it vertically
+            Spacer()
+
             // MARK: – Logo
-            Spacer().frame(height: 40)
             Image("BookClubLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 200, height: 80)
                 .padding(.bottom, 32)
 
-            // MARK: – Title & Subtitle
-            VStack(spacing: 8) {
-                Text("Create an account")
-                    .font(.title2).bold()
 
-                Text("Enter your email to sign up for this app")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-            }
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 32)
-            .padding(.bottom, 24)
+            VStack(spacing: 0) {
+                // Title & Subtitle
+                VStack(spacing: 8) {
+                    Text("Create an account")
+                        .font(.title2).bold()
 
-            // MARK: – Email TextField
-            TextField("email@domain.com", text: $email)
-                .keyboardType(.emailAddress)
-                .autocapitalization(.none)
-                .padding(14)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
-                        .background(Color(white: 0.95))
-                        .cornerRadius(8)
-                )
-                .padding(.horizontal, 32)
+                    Text("Enter your email to sign up for this app")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                .multilineTextAlignment(.center)
                 .padding(.bottom, 24)
 
+                // Email TextField
+                TextField("email@domain.com", text: $email)
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
+                            .background(Color(white: 0.95))
+                            .cornerRadius(8)
+                    )
+                    .padding(.bottom, 24)
 
-            Button(action: {
-                authVM.createUser(email: email, password: "yourDefaultPasswordHere")
-            }) {
-                Text("Continue")
-                    .foregroundColor(.white)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.black)
-                    .cornerRadius(8)
-            }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 24)
+                // Password SecureField
+                SecureField("Password", text: $password) // Secure field for password input
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
+                            .background(Color(white: 0.95))
+                            .cornerRadius(8)
+                    )
+                    .padding(.bottom, 24) // Padding below the password field
 
-            // MARK: – Separator “or”
-            HStack {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.4))
-                    .frame(height: 1)
-
-                Text("  or  ")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-
-                Rectangle()
-                    .fill(Color.gray.opacity(0.4))
-                    .frame(height: 1)
-            }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 24)
-
-            // MARK: – Continue with Google
-            Button(action: {
-                // call your Google sign‐in logic here
-                print("Continue with Google tapped")
-            }) {
-                HStack {
-                    Image("GoogleLogo")
-                        .resizable()
-                        .renderingMode(.original)
-                        .frame(width: 20, height: 20)
-
-                    Text("Continue with Google")
+                // Continue Button
+                Button(action: {
+                    // Call createUser with both email and password
+                    authVM.createUser(email: email, password: password)
+                }) {
+                    Text("Continue")
+                        .foregroundColor(.white)
                         .font(.headline)
-                        .foregroundColor(Color.black)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.black)
+                        .cornerRadius(8)
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color(white: 0.95))
-                .cornerRadius(8)
-            }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 12)
+                .padding(.bottom, 24)
 
-            // MARK: – Continue with Apple
-            Button(action: {
-                // call your Sign in with Apple logic here
-                print("Continue with Apple tapped")
-            }) {
-                HStack {
-                    Image(systemName: "applelogo")
-                        .font(.system(size: 20, weight: .medium))
-
-                    Text("Continue with Apple")
-                        .font(.headline)
-                        .foregroundColor(Color.black)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color(white: 0.95))
-                .cornerRadius(8)
-            }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 24)
-
-            // MARK: – Terms & Privacy
-            VStack(spacing: 2) {
-                Text("By clicking continue, you agree to our")
-                    .font(.footnote)
-                    .foregroundColor(.gray)
-
-                HStack(spacing: 0) {
-                    Text("Terms of Service")
-                        .font(.footnote)
-                        .foregroundColor(.blue)
-
-                    Text(" and ")
+                // Terms & Privacy
+                VStack(spacing: 2) {
+                    Text("By clicking continue, you agree to our")
                         .font(.footnote)
                         .foregroundColor(.gray)
 
-                    Text("Privacy Policy")
-                        .font(.footnote)
-                        .foregroundColor(.blue)
-                }
-            }
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 32)
+                    HStack(spacing: 0) {
+                        Text("Terms of Service")
+                            .font(.footnote)
+                            .foregroundColor(.blue)
 
+                        Text(" and ")
+                            .font(.footnote)
+                            .foregroundColor(.gray)
+
+                        Text("Privacy Policy")
+                            .font(.footnote)
+                            .foregroundColor(.blue)
+                    }
+                }
+                .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 32)
+            
+            // A flexible spacer to push the content above it towards the top,
+            // placing all content above this spacer.
             Spacer()
         }
         .background(Color.white.ignoresSafeArea())
@@ -162,5 +118,3 @@ struct CreateAccountView_Previews: PreviewProvider {
             .environmentObject(AuthViewModel())
     }
 }
-
-
