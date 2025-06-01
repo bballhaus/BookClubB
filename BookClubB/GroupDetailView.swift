@@ -3,16 +3,19 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
+//  Updated to remove duplicate Thread and fix property wrappers.
 //
 
 import SwiftUI
-import FirebaseFirestore
 import FirebaseAuth
+import FirebaseFirestore
 
 struct GroupDetailView: View {
     let groupID: String
-    
+
+    /// Use @StateObject so SwiftUI knows this view owns the ViewModel
     @StateObject private var viewModel = GroupDetailViewModel()
+
     @State private var answer: String = ""
     @State private var showJoinError: Bool = false
     @State private var joinErrorMessage: String?
@@ -20,19 +23,19 @@ struct GroupDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if let group = viewModel.group {
-                // ───── Header ─────
+                // ─── Header ───
                 VStack(alignment: .leading, spacing: 8) {
                     Text(group.title)
                         .font(.largeTitle)
                         .bold()
 
-                    Text("by \(group.bookAuthor)")
+                    Text("By \(group.bookAuthor)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
                     HStack(spacing: 8) {
-                        // Show up to three member placeholders
-                        ForEach(Array(group.memberIDs.prefix(3).enumerated()), id: \.offset) { _, _ in
+                        // Show up to three placeholder circles for members
+                        ForEach(Array(group.memberIDs.prefix(3)), id: \.self) { _ in
                             Circle()
                                 .fill(Color.gray.opacity(0.4))
                                 .frame(width: 24, height: 24)
@@ -44,7 +47,7 @@ struct GroupDetailView: View {
                 }
                 .padding(.horizontal)
 
-                // ───── Moderation Question (if not yet a member) ─────
+                // ─── Moderation question if not a member yet ───
                 if !viewModel.isMember && !viewModel.hasAnswered {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Moderation Question:")
@@ -72,23 +75,41 @@ struct GroupDetailView: View {
                     .padding(.horizontal)
                 }
 
-                // ───── Threads (only if member) ─────
+                // ─── Threads section (only for members) ───
                 if viewModel.isMember {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Threads")
+                        Text("Posts")
                             .font(.headline)
                             .padding(.horizontal)
 
                         ScrollView {
-                            ForEach(viewModel.threads.indices, id: \.self) { idx in
-                                let thread = viewModel.threads[idx]
-                                GroupThreadView(username: thread.username, content: thread.content)
-                                    .padding(.horizontal)
-                                    .padding(.bottom, 12)
+                            LazyVStack(spacing: 16) {
+                                ForEach(viewModel.threads) { thread in
+                                    ThreadView(thread: thread)
+                                        .padding(.horizontal)
+                                }
                             }
+                            .padding(.vertical)
+                        }
+
+                        // “Add Post” button at the bottom
+                        Button(action: {
+                            // TODO: present your “create new thread” UI here
+                        }) {
+                            Text("Add Post")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.black)
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                                .padding(.bottom, 16)
                         }
                     }
-                } else if viewModel.hasAnswered {
+                }
+                else if viewModel.hasAnswered {
+                    // They answered, now awaiting approval
                     Text("Your answer was submitted. Waiting for approval.")
                         .italic()
                         .foregroundColor(.secondary)
@@ -98,16 +119,17 @@ struct GroupDetailView: View {
 
                 Spacer()
             } else {
-                // Loading / placeholder
+                // Loading state
                 VStack {
                     ProgressView()
                         .padding(.top, 40)
-                    Text("Loading group...")
+                    Text("Loading group…")
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        // Use an inline nav bar title (since the parent likely sets a large title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.bind(to: groupID)
@@ -121,7 +143,6 @@ struct GroupDetailView: View {
         }
     }
 
-    // When the user submits the moderation answer, add them to memberIDs
     private func submitAnswer() {
         guard let currentUser = Auth.auth().currentUser else {
             joinErrorMessage = "You must be signed in to join."
@@ -141,7 +162,7 @@ struct GroupDetailView: View {
                     joinErrorMessage = "Failed to join: \(err.localizedDescription)"
                     showJoinError = true
                 } else {
-                    // Refresh the group data so isMember becomes true
+                    // Once they become a member, re-bind so threads start updating
                     viewModel.bind(to: groupID)
                 }
             }
@@ -149,34 +170,79 @@ struct GroupDetailView: View {
     }
 }
 
-// A single post/thread view within a group
-struct GroupThreadView: View {
-    var username: String
-    var content: String
+/// Renders a single post/thread (uses the single `Thread` type from the ViewModel)
+struct ThreadView: View {
+    let thread: Thread  // <-- This is the same Thread from GroupDetailViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(username)
-                .font(.subheadline)
-                .bold()
-            Text(content)
-            HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
+            // ── Poster info (avatar + username + timestamp) ──
+            HStack(spacing: 12) {
+                AsyncImage(url: URL(string: thread.avatarUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        Circle()
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 40, height: 40)
+                            .clipShape(Circle())
+                    case .failure:
+                        Circle()
+                            .fill(Color.red.opacity(0.1))
+                            .overlay(
+                                Image(systemName: "person.fill.exclamationmark")
+                                    .foregroundColor(.red)
+                            )
+                            .frame(width: 40, height: 40)
+                    @unknown default:
+                        Circle()
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(thread.username)
+                        .font(.subheadline)
+                        .bold()
+
+                    Text(thread.createdAt, style: .time)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+            }
+
+            // ── The thread’s content text ──
+            Text(thread.content)
+                .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // ── Icons row (heart, comment, share, send) ──
+            HStack(spacing: 24) {
                 Image(systemName: "heart")
-                Image(systemName: "arrowshape.turn.up.right")
+                Image(systemName: "bubble.right")
+                Image(systemName: "arrow.2.squarepath")
                 Image(systemName: "paperplane")
             }
+            .font(.title3)
             .foregroundColor(.gray)
-            .padding(.top, 4)
-        }
-    }
-}
 
-// MARK: – Preview
+            // ── Footer with replies & likes count ──
+            HStack(spacing: 8) {
+                Text("\(thread.repliesCount) replies")
+                Text("·")
+                Text("\(thread.likesCount) likes")
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
 
-struct GroupDetailView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationView {
-            GroupDetailView(groupID: "dummyID")
+            Divider()
         }
     }
 }
