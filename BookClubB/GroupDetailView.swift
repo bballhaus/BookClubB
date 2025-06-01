@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated 6/4/25 to fix join flow so UI updates immediately after answering.
+//  Updated 6/4/25: show ownerUsername and fix thread display.
 //
 
 import SwiftUI
@@ -15,13 +15,13 @@ struct GroupDetailView: View {
 
     @StateObject private var viewModel = GroupDetailViewModel()
 
-    // Controls presentation of the “New Thread” sheet (members only)
+    // Controls “Add Post” sheet (members only)
     @State private var showingNewThreadSheet: Bool = false
 
-    // Controls presentation of the “Join” sheet (when not a member)
+    // Controls “Join Group” sheet (non-members)
     @State private var showJoinPrompt: Bool = false
 
-    // Bindings for AnswerGroupQuestionView
+    // Bindings for the “AnswerGroupQuestionView”
     @State private var answerText: String = ""
     @State private var answerErrorMessage: String = ""
     @State private var showAnswerErrorAlert: Bool = false
@@ -29,9 +29,10 @@ struct GroupDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Header Area ────────────────────────────────────────────
+            // ── HEADER: Image + Title + Book Author + Mod Info ────────────
             if let group = viewModel.group {
                 VStack(alignment: .leading, spacing: 12) {
+                    // 1) Banner image
                     AsyncImage(url: URL(string: group.imageUrl)) { phase in
                         switch phase {
                         case .empty:
@@ -61,12 +62,20 @@ struct GroupDetailView: View {
                     }
                     .padding(.horizontal)
 
+                    // 2) Group title
                     Text(group.title)
-                        .font(.title)
+                        .font(.largeTitle)
                         .bold()
                         .padding(.horizontal)
-                        .multilineTextAlignment(.center)
+                        .multilineTextAlignment(.leading)
 
+                    // 3) Book author
+                    Text(group.bookAuthor)
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+
+                    // 4) Row: up to 3 member circles + “X members” + Spacer + “Mod: ownerUsername”
                     HStack(spacing: 8) {
                         ForEach(Array(group.memberIDs.prefix(3)), id: \.self) { _ in
                             Circle()
@@ -76,6 +85,15 @@ struct GroupDetailView: View {
                         Text("\(group.memberIDs.count) members")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+
+                        Spacer()
+
+                        // Always show “Mod: <ownerUsername>” once fetched
+                        if !viewModel.ownerUsername.isEmpty {
+                            Text("Mod: \(viewModel.ownerUsername)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .padding(.horizontal)
 
@@ -89,10 +107,9 @@ struct GroupDetailView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // We deliberately do NOT return here, so that the rest of the VStack still exists.
             }
 
-            // ── Thread List (always visible) ────────────────────────────
+            // ── THREAD LIST (visible to all) ────────────────────────────────
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(viewModel.threads) { thread in
@@ -110,8 +127,9 @@ struct GroupDetailView: View {
 
             Divider()
 
-            // ── Bottom Button Area ──────────────────────────────────────
+            // ── BOTTOM BUTTON AREA ───────────────────────────────────────────
             if viewModel.isMember {
+                // Members see “Add Post”
                 Button(action: {
                     showingNewThreadSheet = true
                 }) {
@@ -129,6 +147,7 @@ struct GroupDetailView: View {
                     NewThreadView(groupID: groupID)
                 }
             } else {
+                // Non-members see “Join Group to Post & Like”
                 Button(action: {
                     showJoinPrompt = true
                 }) {
@@ -143,7 +162,7 @@ struct GroupDetailView: View {
                         .padding(.bottom, 16)
                 }
                 .sheet(isPresented: $showJoinPrompt) {
-                    // Force‐unwrap safe because we only present if group != nil
+                    // Safe to force‐unwrap because group != nil here
                     AnswerGroupQuestionView(
                         group: viewModel.group!,
                         answerText: $answerText,
@@ -156,7 +175,6 @@ struct GroupDetailView: View {
                         showJoinPrompt = false
                     }
                     .onAppear {
-                        // Reset fields whenever this sheet appears
                         answerText = ""
                         answerErrorMessage = ""
                         showAnswerErrorAlert = false
@@ -175,10 +193,8 @@ struct GroupDetailView: View {
     }
 
     // ───────────────────────────────────────────────────────────────────────────
-    /// Called once the user types the correct answer in AnswerGroupQuestionView.
-    /// Writes their UID into Firestore ⟶ "memberIDs". Then immediately appends
-    /// currentUser.uid to `viewModel.group?.memberIDs` so that `viewModel.isMember`
-    /// flips to true right away (without waiting for Firestore to push down a new snapshot).
+    /// Called after the user correctly answers the join‐question.
+    /// Adds currentUID to Firestore “groups/{groupID}.memberIDs” and re‐binds.
     private func joinAfterAnswer() {
         guard let group = viewModel.group else {
             showJoinPrompt = false
@@ -200,78 +216,48 @@ struct GroupDetailView: View {
         ]) { err in
             joinInProgress = false
             if let err = err {
-                // If Firestore write fails
                 answerErrorMessage = "Failed to join: \(err.localizedDescription)"
                 showAnswerErrorAlert = true
             } else {
-                // 1) Locally append the UID so viewModel.isMember == true immediately
-                if !viewModel.group!.memberIDs.contains(currentUser.uid) {
-                    viewModel.group!.memberIDs.append(currentUser.uid)
-                }
-                // 2) Also re‐bind to pick up any other document changes
+                // Immediately re-bind so isMember becomes true
                 viewModel.bind(to: groupID)
-
-                // 3) Dismiss the sheet
                 showJoinPrompt = false
             }
         }
     }
 }
 
-
 /// ───────────────────────────────────────────────────────────────────────────────
-/// A single thread row. Shows avatar, username, content, and the “like” + “reply” icons.
-/// For non‐members, the heart is gray and disabled; reply still works.
+/// A single “thread” row. Shows authorID, timestamp, content, like/reply icons.
+/// If isMember == false, the heart is gray and disabled.
 /// ───────────────────────────────────────────────────────────────────────────────
 struct ThreadRowView: View {
     let groupID: String
-    let thread: ThreadModel
+    let thread: GroupThread
     @ObservedObject var viewModel: GroupDetailViewModel
     let isMember: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // ── Avatar + username + timestamp ──
+            // ── Author + Timestamp ──
             HStack(spacing: 12) {
-                AsyncImage(url: URL(string: thread.avatarUrl)) { phase in
-                    switch phase {
-                    case .empty:
-                        Circle()
-                            .fill(Color.gray.opacity(0.1))
-                            .frame(width: 40, height: 40)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 40, height: 40)
-                            .clipShape(Circle())
-                    case .failure:
-                        Circle()
-                            .fill(Color.red.opacity(0.1))
-                            .overlay(
-                                Image(systemName: "person.fill.exclamationmark")
-                                    .foregroundColor(.red)
-                            )
-                            .frame(width: 40, height: 40)
-                    @unknown default:
-                        Circle()
-                            .fill(Color.gray.opacity(0.1))
-                            .frame(width: 40, height: 40)
-                    }
-                }
+                // Placeholder circle (no avatarUrl on GroupThread)
+                Circle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 40, height: 40)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(thread.username)
+                    Text(thread.authorID)             // authorID as “username”
                         .font(.subheadline)
                         .bold()
-                    Text(thread.createdAt, style: .time)
+                    Text(thread.timestamp, style: .time)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
             }
 
-            // ── Content ──
+            // ── Thread content ──
             Text(thread.content)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
@@ -283,13 +269,15 @@ struct ThreadRowView: View {
                         viewModel.toggleLike(groupID: groupID, threadID: thread.id)
                     }
                 } label: {
-                    Image(systemName: thread.isLikedByCurrentUser ? "heart.fill" : "heart")
-                        .font(.title3)
-                        .foregroundColor(
-                            isMember
-                                ? (thread.isLikedByCurrentUser ? .red : .gray)
-                                : .gray.opacity(0.5)
-                        )
+                    Image(
+                        systemName: thread.likeCount > 0 ? "heart.fill" : "heart"
+                    )
+                    .font(.title3)
+                    .foregroundColor(
+                        isMember
+                            ? (thread.likeCount > 0 ? .red : .gray)
+                            : .gray.opacity(0.5)
+                    )
                 }
                 .disabled(!isMember)
 
@@ -301,11 +289,11 @@ struct ThreadRowView: View {
             }
             .font(.title3)
 
-            // ── Footer ──
+            // ── “X likes · Y replies” footer ──
             HStack(spacing: 8) {
-                Text("\(thread.likesCount) likes")
+                Text("\(thread.likeCount) likes")
                 Text("·")
-                Text("\(thread.repliesCount) replies")
+                Text("\(thread.replyCount) replies")
             }
             .font(.caption)
             .foregroundColor(.secondary)
@@ -315,10 +303,10 @@ struct ThreadRowView: View {
     }
 }
 
-
 /// ───────────────────────────────────────────────────────────────────────────────
-/// Presented as a sheet to ask the moderation question (case‐insensitive).
-/// If input matches `correctAnswer`, calls `onCorrectAnswer()`. Otherwise shows an alert.
+/// A sheet view that asks the user the group’s moderation question.
+/// If the trimmed + lowercased answer matches `group.correctAnswer`, calls `onCorrectAnswer()`.
+/// Otherwise, shows an “Incorrect Answer” alert.
 /// ───────────────────────────────────────────────────────────────────────────────
 fileprivate struct AnswerGroupQuestionView: View {
     let group: BookGroup
