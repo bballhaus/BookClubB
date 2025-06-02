@@ -3,7 +3,8 @@
 //  BookClubB
 //
 //  Created by Brooke Ballhaus on 5/31/25.
-//  Updated 6/1/25 to remove the `username` argument from ProfileView.
+//  Updated 6/10/25 so that tapping “by <author>” passes the author’s username
+//  into ProfileView(username:), rather than showing your own profile.
 //
 
 import SwiftUI
@@ -15,7 +16,6 @@ struct HomeView: View {
     var body: some View {
         VStack {
             if viewModel.posts.isEmpty {
-                // Show a loading spinner (or "no posts yet") if empty
                 VStack {
                     ProgressView()
                     Text("Loading posts…")
@@ -24,31 +24,36 @@ struct HomeView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(viewModel.posts) { post in
-                    NavigationLink(destination: PostDetailView(post: post)) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(post.title)
-                                .font(.headline)
+                List {
+                    ForEach(viewModel.posts) { post in
+                        VStack(alignment: .leading, spacing: 8) {
+                            // The entire card navigates to PostDetailView
+                            NavigationLink(destination: PostDetailView(post: post)) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(post.title)
+                                        .font(.headline)
 
-                            // <<— changed: remove `username:` argument
-                            NavigationLink(destination: ProfileView()) {
-                                Text("by \(post.author)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.blue)
+                                    // Tapping “by <author>” → ProfileView(username: post.author)
+                                    NavigationLink(destination: ProfileView(username: post.author)) {
+                                        Text("by \(post.author)")
+                                            .font(.subheadline)
+                                            .foregroundColor(.blue)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+
+                                    Text(post.body)
+                                        .font(.body)
+                                        .lineLimit(2)
+
+                                    Text(post.timestamp, style: .date)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 8)
                             }
-
-                            Text(post.body)
-                                .font(.body)
-                                .lineLimit(2)
-
-                            Text(post.timestamp, style: .date)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            .buttonStyle(PlainButtonStyle())
                         }
-                        .padding(.vertical, 8)
                     }
-                    // The outer NavigationLink still navigates to the full PostDetailView
-                    .buttonStyle(PlainButtonStyle())
                 }
                 .listStyle(PlainListStyle())
             }

@@ -2,8 +2,9 @@
 //  ThreadDetailView.swift
 //  BookClubB
 //
-//  Created by Brooke Ballhaus on 6/1/25.
-//  Updated 6/1/25 to remove the `username` argument from ProfileView (ProfileView() now takes no parameters).
+//  Created by ChatGPT on 6/1/25.
+//  Updated 6/10/25 so that tapping any author’s name opens ProfileView(username:)
+//  rather than always your own profile.
 //
 
 import SwiftUI
@@ -14,7 +15,7 @@ struct ThreadDetailView: View {
     let groupID: String
     let thread: GroupThread
 
-    // Local, mutable “like” state derived from the passed‐in GroupThread
+    // Local, mutable “like” state derived from the passed-in GroupThread
     @State private var isLikedByCurrentUser: Bool
     @State private var likesCount: Int
 
@@ -37,18 +38,20 @@ struct ThreadDetailView: View {
             // ── Parent thread’s header info ──
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
-                    // Placeholder circle for an avatar (GroupThread has no avatarUrl)
+                    // Placeholder avatar circle
                     Circle()
                         .fill(Color.gray.opacity(0.1))
                         .frame(width: 50, height: 50)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        // Now just opens ProfileView() without arguments
-                        NavigationLink(destination: ProfileView()) {
+                        // Tap the author’s display name → open ProfileView(username: thread.authorID)
+                        NavigationLink(destination: ProfileView(username: thread.authorID)) {
                             Text(thread.authorID)
                                 .font(.headline)
                                 .foregroundColor(.blue)
                         }
+                        .buttonStyle(PlainButtonStyle())
+
                         Text(thread.timestamp, style: .time)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -160,7 +163,6 @@ struct ThreadDetailView: View {
     }
 
     // ───────────────────────────────────────────────────────────────────────────
-    /// Toggle like/unlike for the current user on this thread.
     private func toggleLike() {
         guard let currentUID = Auth.auth().currentUser?.uid else {
             return
@@ -217,8 +219,10 @@ struct ThreadDetailView: View {
     }
 }
 
+
 // ───────────────────────────────────────────────────────────────────────────────
-/// A single “reply” row.
+/// A single “reply” row. Now tapping a reply’s author shows their profile
+/// (lookup by reply.username).
 struct ReplyRowView: View {
     let reply: Reply
 
@@ -253,13 +257,15 @@ struct ReplyRowView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    // Now just opens ProfileView() without arguments
-                    NavigationLink(destination: ProfileView()) {
+                    // Tapping reply.username → open ProfileView(username: reply.username)
+                    NavigationLink(destination: ProfileView(username: reply.username)) {
                         Text(reply.username)
                             .font(.subheadline)
                             .bold()
                             .foregroundColor(.blue)
                     }
+                    .buttonStyle(PlainButtonStyle())
+
                     Text(reply.createdAt, style: .time)
                         .font(.caption)
                         .foregroundColor(.secondary)

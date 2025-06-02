@@ -1,8 +1,5 @@
-//  AuthViewModel.swift
-//  BookClubB
-//
-//  Created by Brooke Ballhaus on 5/31/25.
-//
+// AuthViewModel.swift
+// BookClubB
 
 import Foundation
 import FirebaseAuth
@@ -46,8 +43,7 @@ class AuthViewModel: ObservableObject {
 
             guard let user = result?.user else { return }
 
-            // ───────────────────────────────────────────────────────────────
-            // 1) Immediately set the displayName on the Auth user:
+            // 1) Set the displayName on the Auth user:
             let changeRequest = user.createProfileChangeRequest()
             changeRequest.displayName = username
             changeRequest.commitChanges { profileError in
@@ -57,16 +53,17 @@ class AuthViewModel: ObservableObject {
                     print("✅ displayName set to: \(username)")
                 }
             }
-            // ───────────────────────────────────────────────────────────────
             
             self?.user = user
             
-            // 2) Save username and email to Firestore (so you can also read profile data later if needed)
+            // 2) Save complete profile fields to Firestore
             let db = Firestore.firestore()
             db.collection("users").document(user.uid).setData([
                 "username": username,
                 "email": email,
-                "createdAt": Timestamp()
+                "profileImageURL": "",   // ← default placeholder
+                "groupIDs": [],          // ← user starts with no groups
+                "createdAt": Timestamp(date: Date())
             ]) { error in
                 if let error = error {
                     print("Error saving user data: \(error.localizedDescription)")

@@ -2,27 +2,39 @@
 //  ProfileView.swift
 //  BookClubB
 //
-//  Created by Brooke Ballhaus on 6/1/25.
-//  Displays the current user’s personal profile, their groups, and their posts.
+//  Created by ChatGPT on 6/1/25.
+//  Updated 6/11/25 so that the initializer’s label is `username:` (matching ProfileViewModel).
 //
 
 import SwiftUI
 import FirebaseAuth
 
 struct ProfileView: View {
-    @StateObject private var viewModel = ProfileViewModel()
+    /// If `viewingUsername` is nil, show your own profile.
+    /// Otherwise, show the profile for that username.
+    let viewingUsername: String?
+
+    @StateObject private var viewModel: ProfileViewModel
     @AppStorage("isLoggedIn") var isLoggedIn: Bool = true
+
+    // *** Only one initializer. The parameter label is `username:`
+    init(username: String? = nil) {
+        self.viewingUsername = username
+        self._viewModel = StateObject(wrappedValue: ProfileViewModel(username: username))
+    }
 
     private let horizontalPadding: CGFloat = 16
 
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 0) {
-                // ── PROFILE HEADER ───────────────────────────────────────
+                // ── Profile Header ──────────────────────────────────────────
                 HStack(spacing: 16) {
-                    // 1) Profile Image (if available, else placeholder)
+                    // 1) Profile Image or placeholder
                     if let urlString = viewModel.userProfile?.profileImageURL,
-                       let url = URL(string: urlString) {
+                       let url = URL(string: urlString),
+                       !urlString.isEmpty
+                    {
                         AsyncImage(url: url) { phase in
                             switch phase {
                             case .empty:
@@ -50,7 +62,6 @@ struct ProfileView: View {
                             }
                         }
                     } else {
-                        // Placeholder if no profileImageURL
                         Circle()
                             .fill(Color.gray.opacity(0.2))
                             .frame(width: 80, height: 80)
@@ -64,12 +75,12 @@ struct ProfileView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        // 2) “Name” (hard-coded for now)
+                        // 2) Display name (still “Name” for now)
                         Text("Name")
                             .font(.title2)
                             .bold()
 
-                        // 3) Username (“@username” if available)
+                        // 3) Username from Firestore or “@unknown”
                         if let username = viewModel.userProfile?.username {
                             Text("@\(username)")
                                 .font(.subheadline)
@@ -83,17 +94,19 @@ struct ProfileView: View {
 
                     Spacer()
 
-                    // 4) Sign Out button
-                    Button(action: signOut) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.title2)
-                            .foregroundColor(.red)
+                    // 4) Only show “Sign Out” if viewing your own profile (i.e. viewingUsername == nil)
+                    if viewingUsername == nil {
+                        Button(action: signOut) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.title2)
+                                .foregroundColor(.red)
+                        }
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, 16)
 
-                // ── FOLLOWERS / FOLLOWING PLACEHOLDER ────────────────────
+                // ── Followers / Following placeholders ────────────────────
                 HStack(spacing: 24) {
                     VStack {
                         Text("0")
@@ -119,9 +132,9 @@ struct ProfileView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
-                        // ── “Your Groups” SECTION ───────────────────────────────
+                        // ── “Their Groups” ────────────────────────────────────
                         HStack {
-                            Text("Your Groups")
+                            Text(viewingUsername == nil ? "Your Groups" : "Their Groups")
                                 .font(.headline)
                             Spacer()
                             Image(systemName: "chevron.right")
@@ -130,7 +143,9 @@ struct ProfileView: View {
                         .padding(.horizontal, horizontalPadding)
 
                         if viewModel.groups.isEmpty {
-                            Text("You haven’t joined any groups yet.")
+                            Text(viewingUsername == nil
+                                 ? "You haven’t joined any groups yet."
+                                 : "They haven’t joined any groups yet.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, horizontalPadding)
@@ -152,9 +167,9 @@ struct ProfileView: View {
 
                         Divider()
 
-                        // ── “Your Posts” SECTION ────────────────────────────────
+                        // ── “Their Posts” ─────────────────────────────────────
                         HStack {
-                            Text("Your Posts")
+                            Text(viewingUsername == nil ? "Your Posts" : "Their Posts")
                                 .font(.headline)
                             Spacer()
                             Image(systemName: "chevron.right")
@@ -163,7 +178,9 @@ struct ProfileView: View {
                         .padding(.horizontal, horizontalPadding)
 
                         if viewModel.posts.isEmpty {
-                            Text("You haven’t made any posts yet.")
+                            Text(viewingUsername == nil
+                                 ? "You haven’t made any posts yet."
+                                 : "They haven’t made any posts yet.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, horizontalPadding)
@@ -204,18 +221,19 @@ struct ProfileView: View {
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .overlay(
-                // Show any error at bottom if needed
                 Group {
                     if let err = viewModel.errorMessage {
-                        Text("❌ \(err)")
-                            .foregroundColor(.red)
-                            .padding()
-                            .background(Color.white.opacity(0.9))
-                            .cornerRadius(8)
-                            .padding(.bottom, 32)
+                        VStack {
+                            Spacer()
+                            Text("❌ \(err)")
+                                .foregroundColor(.red)
+                                .padding()
+                                .background(Color.white.opacity(0.9))
+                                .cornerRadius(8)
+                                .padding(.bottom, 32)
+                        }
                     }
-                },
-                alignment: .bottom
+                }
             )
         }
     }
@@ -225,15 +243,17 @@ struct ProfileView: View {
             try Auth.auth().signOut()
             isLoggedIn = false
         } catch {
-            // Handle sign-out error if desired
+            // Optionally handle
         }
     }
 }
 
-// ───────────────────────────────────────────────────────────────────────────────
-// Preview
 struct ProfileView_Previews: PreviewProvider {
     static var previews: some View {
+        // Your own profile:
         ProfileView()
+
+        // Another user’s profile by username:
+        // ProfileView(username: "someOtherUsername")
     }
 }

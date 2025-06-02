@@ -2,8 +2,8 @@
 //  ProfileViewModel.swift
 //  BookClubB
 //
-//  Created by Brooke Ballhaus on 6/1/25.
-//  Fetches the current user’s profile, their groups, and their posts.
+//  Created by ChatGPT on 6/1/25.
+//  Updated 6/11/25 so that the initializer’s label is `username:` (not `viewingUsername:`).
 //
 
 import Foundation
@@ -20,60 +20,72 @@ class ProfileViewModel: ObservableObject {
     private let db = Firestore.firestore()
     private var cancellables = Set<AnyCancellable>()
 
-    init() {
+    /// If `username` is nil, show the signed‐in user’s profile.
+    /// Otherwise, show that user’s profile by querying `/users` where "username" == this string.
+    private let usernameToLookup: String?
+
+    /// **IMPORTANT**: the parameter label here must be `username:` so it matches how ProfileView calls it.
+    init(username: String? = nil) {
+        self.usernameToLookup = username
         fetchUserProfile()
     }
 
     private func fetchUserProfile() {
-        guard let currentUser = Auth.auth().currentUser else {
-            self.errorMessage = "No signed‐in user found."
+        // Decide which username to actually query:
+        let lookup: String
+        if let explicit = usernameToLookup {
+            lookup = explicit
+        } else if let currentUsername = Auth.auth().currentUser?.displayName {
+            lookup = currentUsername
+        } else {
+            DispatchQueue.main.async {
+                self.errorMessage = "No signed-in user found."
+            }
             return
         }
 
-        let userDocRef = db.collection("users").document(currentUser.uid)
-        userDocRef.getDocument { [weak self] snapshot, error in
-            guard let self = self else { return }
+        // Now look up `/users` where `username == lookup`
+        db.collection("users")
+            .whereField("username", isEqualTo: lookup)
+            .limit(to: 1)
+            .getDocuments { [weak self] snapshot, error in
+                guard let self = self else { return }
 
-            if let error = error {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to fetch user profile: \(error.localizedDescription)"
+                if let error = error {
+                    DispatchQueue.main.async {
+                        self.errorMessage = "Failed to fetch profile: \(error.localizedDescription)"
+                    }
+                    return
                 }
-                return
-            }
 
-            guard
-                let data = snapshot?.data(),
-                let userProfile = UserProfile.fromDictionary(data, id: currentUser.uid)
-            else {
-                DispatchQueue.main.async {
-                    self.errorMessage = "User profile data is malformed."
+                guard
+                    let document = snapshot?.documents.first,
+                    let profile = UserProfile.fromDictionary(document.data(), id: document.documentID)
+                else {
+                    DispatchQueue.main.async {
+                        self.errorMessage = "User '\(lookup)' not found or data malformed."
+                    }
+                    return
                 }
-                return
-            }
 
-            DispatchQueue.main.async {
-                self.userProfile = userProfile
-            }
+                DispatchQueue.main.async {
+                    self.userProfile = profile
+                }
 
-            // Once we have the userProfile, fetch their groups & posts:
-            self.fetchGroups(from: userProfile.groupIDs)
-            self.fetchPosts(for: userProfile.username)
-        }
+                // Fetch that user’s groups and posts
+                self.fetchGroups(from: profile.groupIDs)
+                self.fetchPosts(forUsername: lookup)
+            }
     }
 
+    /// Fetch BookGroup documents whose IDs are in `groupIDs`
     private func fetchGroups(from groupIDs: [String]) {
-        // Clear any existing list:
-        DispatchQueue.main.async {
-            self.groups.removeAll()
-        }
-
-        // If the user belongs to no groups, nothing to do:
+        DispatchQueue.main.async { self.groups.removeAll() }
         guard !groupIDs.isEmpty else { return }
 
-        // Firestore “in” query can only take up to 10 IDs at once.
-        // If more than 10, split them in batches of ≤10.
+        // Split into batches of ≤10 for Firestore “in” query
         let batches = stride(from: 0, to: groupIDs.count, by: 10).map {
-            Array(groupIDs[$0..<min($0 + 10, groupIDs.count)])
+            Array(groupIDs[$0 ..< min($0 + 10, groupIDs.count)])
         }
 
         for batch in batches {
@@ -81,20 +93,16 @@ class ProfileViewModel: ObservableObject {
                 .whereField(FieldPath.documentID(), in: batch)
                 .getDocuments { [weak self] snapshot, error in
                     guard let self = self else { return }
-
                     if let error = error {
                         DispatchQueue.main.async {
                             self.errorMessage = "Failed to fetch groups: \(error.localizedDescription)"
                         }
                         return
                     }
-
-                    guard let documents = snapshot?.documents else { return }
-
-                    let fetched = documents.compactMap { doc -> BookGroup? in
-                        return BookGroup.fromDictionary(doc.data(), id: doc.documentID)
+                    guard let docs = snapshot?.documents else { return }
+                    let fetched = docs.compactMap { doc -> BookGroup? in
+                        BookGroup.fromDictionary(doc.data(), id: doc.documentID)
                     }
-
                     DispatchQueue.main.async {
                         self.groups.append(contentsOf: fetched)
                     }
@@ -102,34 +110,30 @@ class ProfileViewModel: ObservableObject {
         }
     }
 
-    private func fetchPosts(for username: String) {
-        // Listen to “posts” where author == username
+    /// Fetch all posts where `author == username`
+    private func fetchPosts(forUsername username: String) {
         db.collection("posts")
             .whereField("author", isEqualTo: username)
             .order(by: "timestamp", descending: true)
             .addSnapshotListener { [weak self] snapshot, error in
                 guard let self = self else { return }
-
                 if let error = error {
                     DispatchQueue.main.async {
                         self.errorMessage = "Error fetching posts: \(error.localizedDescription)"
                     }
                     return
                 }
-
-                guard let documents = snapshot?.documents else {
+                guard let docs = snapshot?.documents else {
                     DispatchQueue.main.async {
                         self.posts = []
                     }
                     return
                 }
-
-                let fetchedPosts = documents.compactMap { doc -> Post? in
+                let fetched = docs.compactMap { doc -> Post? in
                     return Post(id: doc.documentID, data: doc.data())
                 }
-
                 DispatchQueue.main.async {
-                    self.posts = fetchedPosts
+                    self.posts = fetched
                 }
             }
     }

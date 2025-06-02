@@ -3,8 +3,7 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated 6/10/25 to inline the “answer group question” sheet
-//  and expose GroupCardView so that ProfileView can reference it directly.
+//  Updated 6/11/25 to also add the joined group’s ID into the user’s `groupIDs` array.
 //
 
 import SwiftUI
@@ -95,7 +94,6 @@ struct GroupPageView: View {
                     HStack(spacing: 16) {
                         ForEach(allGroups.filter { $0.memberIDs.contains(currentUserID) }) { group in
                             NavigationLink(destination: GroupDetailView(groupID: group.id)) {
-                                // Use the shared GroupCardView declared below
                                 GroupCardView(group: group)
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -248,7 +246,8 @@ struct GroupPageView: View {
     }
 
     // ───────────────────────────────────────────────────────────────────────────
-    /// Validates the user’s answer. If correct, adds them to memberIDs.
+    /// Validates the user’s answer. If correct, adds them to both the group’s
+    /// memberIDs array and the user’s groupIDs array in Firestore.
     private func validateAnswerAndJoin(group: BookGroup) {
         let trimmedInput = answerText
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -258,7 +257,7 @@ struct GroupPageView: View {
             .lowercased()
 
         if trimmedInput == trimmedCorrect {
-            // Add current user to the group’s memberIDs array
+            // 1) Add current user to the group’s memberIDs AND add group to user’s groupIDs
             guard let user = Auth.auth().currentUser else {
                 answerErrorMessage = "You must be signed in to join."
                 showAnswerErrorAlert = true
@@ -269,17 +268,30 @@ struct GroupPageView: View {
 
             let db = Firestore.firestore()
             let groupRef = db.collection("groups").document(group.id)
+            let userRef = db.collection("users").document(user.uid)
 
-            groupRef.updateData([
+            // Use a batch to update both documents atomically
+            let batch = db.batch()
+
+            // a) Update the group document:
+            batch.updateData([
                 "memberIDs": FieldValue.arrayUnion([user.uid]),
                 "updatedAt": Timestamp(date: Date())
-            ]) { err in
+            ], forDocument: groupRef)
+
+            // b) Update the user document:
+            batch.updateData([
+                "groupIDs": FieldValue.arrayUnion([group.id])
+            ], forDocument: userRef)
+
+            batch.commit { err in
                 joinInProgress = false
                 if let err = err {
                     errorMessage = "Could not join: \(err.localizedDescription)"
                     showErrorAlert = true
                 } else {
-                    fetchAllGroups() // Refresh “Your Groups” immediately
+                    // Refresh so “Your Groups” immediately shows the newly joined group
+                    fetchAllGroups()
                 }
                 groupToAnswer = nil
             }
@@ -295,7 +307,6 @@ struct GroupPageView: View {
 // ───────────────────────────────────────────────────────────────────────────────
 // MARK: – GroupCardView
 // A reusable “card” for displaying a BookGroup in a horizontal scroll.
-// No longer fileprivate, so ProfileView and other screens can use it directly.
 // ───────────────────────────────────────────────────────────────────────────────
 struct GroupCardView: View {
     let group: BookGroup
@@ -343,7 +354,7 @@ struct GroupCardView: View {
 
 // ───────────────────────────────────────────────────────────────────────────────
 // MARK: – SectionHeaderView
-// A small helper to render section titles (e.g., “Your Groups”).
+// A small helper to render section titles (e.g. “Your Groups”).
 // ───────────────────────────────────────────────────────────────────────────────
 fileprivate struct SectionHeaderView: View {
     let title: String

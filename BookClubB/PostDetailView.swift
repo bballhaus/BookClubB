@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by Brooke Ballhaus on 5/31/25.
-//  Updated 6/1/25 to remove the `username` argument from ProfileView, since ProfileView() no longer takes parameters.
+//  Updated 6/10/25 so that tapping the author’s name opens ProfileView(username:).
 //
 
 import SwiftUI
@@ -19,12 +19,13 @@ struct PostDetailView: View {
                     .font(.title2)
                     .bold()
 
-                // Tappable author name—now just opens the personal ProfileView()
-                NavigationLink(destination: ProfileView()) {
+                // Tapping “by <author>” → ProfileView(username: post.author)
+                NavigationLink(destination: ProfileView(username: post.author)) {
                     Text("by \(post.author)")
                         .font(.subheadline)
                         .foregroundColor(.blue)
                 }
+                .buttonStyle(PlainButtonStyle())
 
                 Divider()
 

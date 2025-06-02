@@ -3,10 +3,8 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated 6/11/25 to remove `username:` arguments from ProfileView
-//  and to simplify the “Mods:” HStack so the compiler can type-check.
-//
-//  Now tapping any username just opens the personal ProfileView().
+//  Updated 6/11/25 so that tapping any author’s name opens ProfileView(username:)
+//  instead of always showing the signed-in user.
 //
 
 import SwiftUI
@@ -18,10 +16,10 @@ struct GroupDetailView: View {
 
     @StateObject private var viewModel = GroupDetailViewModel()
 
-    // “Add Post” sheet for members
+    // “Add Thread” sheet for members
     @State private var showingNewThreadSheet: Bool = false
 
-    // “Join Group” sheet for non-members
+    // “Join Group” prompt sheet for non-members
     @State private var showJoinPrompt: Bool = false
 
     // Bindings for the join-question sheet
@@ -99,13 +97,14 @@ struct GroupDetailView: View {
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
 
-                                // Now simply call ProfileView() without passing `username:`
+                                // Each moderator’s name is tappable, opening their profile by username
                                 ForEach(mods, id: \.self) { modName in
-                                    NavigationLink(destination: ProfileView()) {
+                                    NavigationLink(destination: ProfileView(username: modName)) {
                                         Text(modName)
                                             .font(.subheadline)
                                             .foregroundColor(.blue)
                                     }
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                             }
                             .padding(.trailing)
@@ -125,15 +124,11 @@ struct GroupDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // ─────────────────────────────────────────────────────────────────────────
-            // (The rest of GroupDetailView, unchanged, goes here…)
-            // Threads list, New Thread button, Join question sheet trigger, etc.
-            // ─────────────────────────────────────────────────────────────────────────
-
+            // ── THREADS LIST ───────────────────────────────────────────────────────
             if let group = viewModel.group {
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        // If the user is a member, allow “Add Post”:
+                        // If the user is a member, show “Add Thread” button:
                         if viewModel.isMember {
                             Button {
                                 showingNewThreadSheet = true
@@ -171,7 +166,7 @@ struct GroupDetailView: View {
 
             Spacer()
 
-            // ── If the user is not a member, show a “Join Group” prompt button ──
+            // ── If the user is not a member, show “Join Group” button ───────────
             if let group = viewModel.group, !viewModel.isMember {
                 Button(action: {
                     showJoinPrompt = true
@@ -191,7 +186,6 @@ struct GroupDetailView: View {
                         title: Text("Join “\(viewModel.group?.title ?? "")”?"),
                         message: Text("Answer the group’s moderation question to join."),
                         primaryButton: .default(Text("Answer")) {
-                            // Showing the sheet
                             showJoinPrompt = true
                         },
                         secondaryButton: .cancel()
@@ -210,9 +204,12 @@ struct GroupDetailView: View {
     }
 }
 
+
 // ───────────────────────────────────────────────────────────────────────────────
-// A single “thread” row. Shows authorID, timestamp, content, like/reply icons,
-// and (if the current user is the group owner) a red “trash” button.
+// MARK: – ThreadRowView (list of threads in this group)
+// Each thread shows the author, timestamp, content, like/reply buttons, etc.
+// Tapping the author’s name opens ProfileView(username: authorID).
+// ───────────────────────────────────────────────────────────────────────────────
 struct ThreadRowView: View {
     let groupID: String
     let thread: GroupThread
@@ -222,7 +219,7 @@ struct ThreadRowView: View {
     /// True if the currently signed-in user’s UID equals the group’s ownerID
     private var isOwner: Bool {
         guard let currentUID = Auth.auth().currentUser?.uid,
-              let ownerUID = viewModel.group?.ownerID
+              let ownerUID   = viewModel.group?.ownerID
         else {
             return false
         }
@@ -233,19 +230,21 @@ struct ThreadRowView: View {
         VStack(alignment: .leading, spacing: 12) {
             // ── Author + Timestamp + (Owner-only “trash” button) ──
             HStack(spacing: 12) {
-                // Placeholder circle for an avatar (GroupThread has no avatarUrl)
+                // Placeholder avatar circle (no avatarUrl on GroupThread)
                 Circle()
                     .fill(Color.gray.opacity(0.3))
                     .frame(width: 40, height: 40)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    // Now just open ProfileView() without arguments
-                    NavigationLink(destination: ProfileView()) {
+                    // Tapping author name → ProfileView(username: thread.authorID)
+                    NavigationLink(destination: ProfileView(username: thread.authorID)) {
                         Text(thread.authorID)
                             .font(.subheadline)
                             .bold()
                             .foregroundColor(.blue)
                     }
+                    .buttonStyle(PlainButtonStyle())
+
                     Text(thread.timestamp, style: .time)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -253,7 +252,7 @@ struct ThreadRowView: View {
 
                 Spacer()
 
-                // Only show a red trash icon if this user is the group’s owner:
+                // If this user is the group’s owner, show a delete button
                 if isOwner {
                     Button {
                         viewModel.deleteThread(groupID: groupID, threadID: thread.id)
@@ -262,32 +261,29 @@ struct ThreadRowView: View {
                             .foregroundColor(.red)
                             .font(.title3)
                     }
-                    // Use a borderless style so it doesn’t hijack row taps:
                     .buttonStyle(BorderlessButtonStyle())
                 }
             }
 
-            // ── Thread Content ──
+            // ── Thread content ──
             Text(thread.content)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // ── Like & Reply Icons ──
+            // ── Like & Reply icons ──
             HStack(spacing: 24) {
                 Button {
                     if isMember {
                         viewModel.toggleLike(groupID: groupID, threadID: thread.id)
                     }
                 } label: {
-                    Image(
-                        systemName: thread.likeCount > 0 ? "heart.fill" : "heart"
-                    )
-                    .font(.title3)
-                    .foregroundColor(
-                        isMember
-                            ? (thread.likeCount > 0 ? .red : .gray)
-                            : .gray.opacity(0.5)
-                    )
+                    Image(systemName: thread.likeCount > 0 ? "heart.fill" : "heart")
+                        .font(.title3)
+                        .foregroundColor(
+                            isMember
+                                ? (thread.likeCount > 0 ? .red : .gray)
+                                : .gray.opacity(0.5)
+                        )
                 }
                 .disabled(!isMember)
 
@@ -313,6 +309,7 @@ struct ThreadRowView: View {
     }
 }
 
+
 // ───────────────────────────────────────────────────────────────────────────────
 // MARK: – SectionHeaderView
 // A small helper to render section titles (e.g., “Your Groups”).
@@ -326,6 +323,7 @@ fileprivate struct SectionHeaderView: View {
             .padding(.leading, 16)
     }
 }
+
 
 // ───────────────────────────────────────────────────────────────────────────────
 // MARK: – SearchResultRow

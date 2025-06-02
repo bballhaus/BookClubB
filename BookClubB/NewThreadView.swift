@@ -3,8 +3,7 @@
 //  BookClubB
 //
 //  Created by YourName on 6/1/25.
-//  Updated 6/2/25 to simply call `dismiss()` when done,
-//  so that we stay on GroupDetailView after posting.
+//  Updated 6/10/25 to include “authorUID” when creating a new thread.
 //
 
 import SwiftUI
@@ -12,12 +11,8 @@ import FirebaseAuth
 import FirebaseFirestore
 
 struct NewThreadView: View {
-    @Environment(\.dismiss) private var dismiss
-
     let groupID: String
-
-    // Fallback avatar URL (any placeholder image)
-    private let defaultAvatar = "https://example.com/default-avatar.png"
+    @Environment(\.dismiss) private var dismiss
 
     @State private var postContent: String = ""
     @State private var isSubmitting: Bool = false
@@ -26,54 +21,49 @@ struct NewThreadView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 16) {
-                // TextEditor for typing the post content
                 TextEditor(text: $postContent)
-                    .border(Color.gray.opacity(0.4), width: 1)
-                    .frame(minHeight: 150)
-                    .padding(.horizontal)
+                    .frame(height: 150)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                    )
+                    .padding()
 
-                // Show any error below the editor
-                if let err = errorMessage {
-                    Text(err)
+                if let error = errorMessage {
+                    Text("❌ \(error)")
                         .foregroundColor(.red)
-                        .font(.subheadline)
-                        .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
 
                 Spacer()
 
-                // Submit button
                 Button(action: submitThread) {
                     if isSubmitting {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.gray)
-                            .cornerRadius(8)
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 40)
                     } else {
-                        Text("Submit")
+                        Text("Post Thread")
                             .font(.headline)
                             .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .cornerRadius(8)
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 40)
                     }
                 }
-                .disabled(
-                    postContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || isSubmitting
-                )
-                .padding(.horizontal)
+                .background(isSubmitting ? Color.gray.opacity(0.6) : Color.blue)
+                .cornerRadius(8)
+                .disabled(isSubmitting || postContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .padding(.bottom, 20)
             }
-            .navigationTitle("New Post")
+            .navigationTitle("New Thread")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(leading: Button("Cancel") {
-                dismiss()
-            })
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 
@@ -87,8 +77,8 @@ struct NewThreadView: View {
         isSubmitting = true
         errorMessage = nil
 
+        // Use the user’s displayName as the “username”
         let username = currentUser.displayName ?? "Anonymous"
-        let avatarUrl = defaultAvatar
 
         let db = Firestore.firestore()
         let newThreadRef = db
@@ -100,7 +90,7 @@ struct NewThreadView: View {
         let now = Date()
         let threadData: [String: Any] = [
             "username":     username,
-            "avatarUrl":    avatarUrl,
+            "authorUID":    currentUser.uid,         // ← newly added
             "content":      postContent.trimmingCharacters(in: .whitespacesAndNewlines),
             "createdAt":    Timestamp(date: now),
             "likesCount":   0,
@@ -113,7 +103,6 @@ struct NewThreadView: View {
                 if let err = err {
                     self.errorMessage = "Failed to post: \(err.localizedDescription)"
                 } else {
-                    // Dismiss the sheet so we stay on GroupDetailView
                     dismiss()
                 }
             }
@@ -121,9 +110,8 @@ struct NewThreadView: View {
     }
 }
 
-// MARK: - Preview
 struct NewThreadView_Previews: PreviewProvider {
     static var previews: some View {
-        NewThreadView(groupID: "SAMPLE_GROUP_ID")
+        NewThreadView(groupID: "exampleGroupID")
     }
 }

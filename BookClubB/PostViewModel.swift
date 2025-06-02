@@ -1,62 +1,90 @@
-////
-////  PostViewModel.swift
-////  BookClubB
-////
-////  Created by Brooke Ballhaus on 5/31/25.
-////
 //
+//  PostViewModel.swift
+//  BookClubB
+//
+//  Created by ChatGPT on 6/1/25.
+//  Updated 6/11/25 to add an `addPost(author:title:body:)` method.
+//
+
 import Foundation
 import FirebaseFirestore
-import Combine
+import FirebaseAuth
 
 class PostViewModel: ObservableObject {
     @Published var posts: [Post] = []
-    private var listenerRegistration: ListenerRegistration?
+    @Published var errorMessage: String?
 
-    private var db = Firestore.firestore()
+    private var listenerRegistration: ListenerRegistration?
 
     init() {
         fetchPosts()
-    }
-
-    func fetchPosts() {
-        // Listen to the "posts" collection, ordered by timestamp descending
-        listenerRegistration = db
-            .collection("posts")
-            .order(by: "timestamp", descending: true)
-            .addSnapshotListener { [weak self] snapshot, error in
-                if let error = error {
-                    print("Error fetching posts: \(error.localizedDescription)")
-                    return
-                }
-                guard let documents = snapshot?.documents else {
-                    print("No posts found")
-                    return
-                }
-
-                // Map each Firestore document to our Post model
-                self?.posts = documents.compactMap { doc -> Post? in
-                    let data = doc.data()  // [String: Any]
-                    return Post(id: doc.documentID, data: data)
-                }
-            }
     }
 
     deinit {
         listenerRegistration?.remove()
     }
 
+    /// Starts listening to the “posts” collection, ordered by timestamp descending.
+    private func fetchPosts() {
+        let db = Firestore.firestore()
+        listenerRegistration = db
+            .collection("posts")
+            .order(by: "timestamp", descending: true)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self else { return }
+                if let error = error {
+                    DispatchQueue.main.async {
+                        self.errorMessage = "Failed to fetch posts: \(error.localizedDescription)"
+                        self.posts = []
+                    }
+                    return
+                }
+
+                guard let docs = snapshot?.documents else {
+                    DispatchQueue.main.async {
+                        self.posts = []
+                    }
+                    return
+                }
+
+                let fetchedPosts = docs.compactMap { doc -> Post? in
+                    return Post(id: doc.documentID, data: doc.data())
+                }
+                DispatchQueue.main.async {
+                    self.posts = fetchedPosts
+                }
+            }
+    }
+
+    /// Creates a new post document in Firestore with the given author, title, and body.
+    /// The `author` parameter should be the display name (e.g. “brooke”).
     func addPost(author: String, title: String, body: String) {
-        // Prepare a dictionary for a new post
-        let newData: [String: Any] = [
-            "author": author,
-            "title": title,
-            "body": body,
-            "timestamp": Timestamp(date: Date())
+        // Ensure user is signed in so we can record UID if needed.
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            DispatchQueue.main.async {
+                self.errorMessage = "You must be signed in to create a post."
+            }
+            return
+        }
+
+        let db = Firestore.firestore()
+        let newPostRef = db.collection("posts").document() // auto‐generated ID
+
+        let now = Date()
+        let postData: [String: Any] = [
+            "author":     author,
+            "authorUID":  currentUID,                 // store the UID for navigation
+            "title":      title.trimmingCharacters(in: .whitespacesAndNewlines),
+            "body":       body.trimmingCharacters(in: .whitespacesAndNewlines),
+            "timestamp":  Timestamp(date: now)
         ]
-        db.collection("posts").addDocument(data: newData) { error in
-            if let error = error {
-                print("Error adding post: \(error.localizedDescription)")
+
+        newPostRef.setData(postData) { err in
+            DispatchQueue.main.async {
+                if let err = err {
+                    self.errorMessage = "Failed to create post: \(err.localizedDescription)"
+                }
+                // On success, the Firestore listener will pick up the new post automatically.
             }
         }
     }

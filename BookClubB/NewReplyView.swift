@@ -103,6 +103,7 @@ struct NewReplyView: View {
         let now = Date()
         let replyData: [String: Any] = [
             "username":  username,
+            "authorUID": currentUser.uid,                           // ← newly added
             "avatarUrl": avatarUrl,
             "content":   replyContent.trimmingCharacters(in: .whitespacesAndNewlines),
             "createdAt": Timestamp(date: now)
