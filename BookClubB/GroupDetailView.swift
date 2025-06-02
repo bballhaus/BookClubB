@@ -3,8 +3,8 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated 6/11/25 so that tapping any author’s name opens ProfileView(username:)
-//  instead of always showing the signed-in user.
+//  Modified 6/2/25 so that each thread‐author’s avatar is now a light‐green
+//  circle containing the first uppercase letter of their username.
 //
 
 import SwiftUI
@@ -16,24 +16,24 @@ struct GroupDetailView: View {
 
     @StateObject private var viewModel = GroupDetailViewModel()
 
-    // “Add Thread” sheet for members
-    @State private var showingNewThreadSheet: Bool = false
+    // Controls the “Add New Thread” sheet
+    @State private var showingNewThreadSheet = false
 
-    // “Join Group” prompt sheet for non-members
-    @State private var showJoinPrompt: Bool = false
+    // Controls the “Join Group” prompt for non‐members
+    @State private var showJoinPrompt = false
 
-    // Bindings for the join-question sheet
-    @State private var answerText: String = ""
-    @State private var answerErrorMessage: String = ""
-    @State private var showAnswerErrorAlert: Bool = false
-    @State private var joinInProgress: Bool = false
+    // Bindings for the join‐question sheet
+    @State private var answerText = ""
+    @State private var answerErrorMessage = ""
+    @State private var showAnswerErrorAlert = false
+    @State private var joinInProgress = false
 
     var body: some View {
         VStack(spacing: 0) {
             // ── HEADER: Banner + Title + Book Author + Members + Mods ──
             if let group = viewModel.group {
                 VStack(alignment: .leading, spacing: 12) {
-                    // 1) Banner image
+                    // 1) Banner image (unchanged)
                     AsyncImage(url: URL(string: group.imageUrl)) { phase in
                         switch phase {
                         case .empty:
@@ -76,7 +76,7 @@ struct GroupDetailView: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
 
-                    // 4) Row: up to 3 member circles + “X members” + Spacer + “Mods: …”
+                    // 4) Members row + “Mods: …” list
                     HStack(spacing: 8) {
                         ForEach(Array(group.memberIDs.prefix(3)), id: \.self) { _ in
                             Circle()
@@ -89,7 +89,6 @@ struct GroupDetailView: View {
 
                         Spacer()
 
-                        // Extract moderator list into a local constant to help the type-checker
                         let mods = viewModel.moderatorUsernames
                         if !mods.isEmpty {
                             HStack(spacing: 4) {
@@ -97,7 +96,6 @@ struct GroupDetailView: View {
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
 
-                                // Each moderator’s name is tappable, opening their profile by username
                                 ForEach(mods, id: \.self) { modName in
                                     NavigationLink(destination: ProfileView(username: modName)) {
                                         Text(modName)
@@ -125,10 +123,10 @@ struct GroupDetailView: View {
             }
 
             // ── THREADS LIST ───────────────────────────────────────────────────────
-            if let group = viewModel.group {
+            if let _ = viewModel.group {
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        // If the user is a member, show “Add Thread” button:
+                        // “Add New Thread” button for members
                         if viewModel.isMember {
                             Button {
                                 showingNewThreadSheet = true
@@ -147,6 +145,7 @@ struct GroupDetailView: View {
                             }
                         }
 
+                        // Each thread row
                         ForEach(viewModel.threads) { thread in
                             ThreadRowView(
                                 groupID: groupID,
@@ -166,7 +165,7 @@ struct GroupDetailView: View {
 
             Spacer()
 
-            // ── If the user is not a member, show “Join Group” button ───────────
+            // ── “Join Group” button for non‐members ─────────────────────────────
             if let group = viewModel.group, !viewModel.isMember {
                 Button(action: {
                     showJoinPrompt = true
@@ -205,21 +204,23 @@ struct GroupDetailView: View {
 }
 
 
-// ───────────────────────────────────────────────────────────────────────────────
-// MARK: – ThreadRowView (list of threads in this group)
-// Each thread shows the author, timestamp, content, like/reply buttons, etc.
-// Tapping the author’s name opens ProfileView(username: authorID).
-// ───────────────────────────────────────────────────────────────────────────────
+/// ───────────────────────────────────────────────────────────────────────────────
+/// A single row representing one `GroupThread`.
+/// • The avatar is now a light‐green circle with the first letter of `thread.authorID`.
+/// • Tapping the author’s name navigates to ProfileView(username:).
+/// • The like/reply button logic is exactly as before, unchanged.
+/// ───────────────────────────────────────────────────────────────────────────────
 struct ThreadRowView: View {
     let groupID: String
     let thread: GroupThread
     @ObservedObject var viewModel: GroupDetailViewModel
     let isMember: Bool
 
-    /// True if the currently signed-in user’s UID equals the group’s ownerID
+    /// True if the current user’s UID == group.ownerID
     private var isOwner: Bool {
-        guard let currentUID = Auth.auth().currentUser?.uid,
-              let ownerUID   = viewModel.group?.ownerID
+        guard
+            let currentUID = Auth.auth().currentUser?.uid,
+            let ownerUID   = viewModel.group?.ownerID
         else {
             return false
         }
@@ -228,15 +229,21 @@ struct ThreadRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // ── Author + Timestamp + (Owner-only “trash” button) ──
             HStack(spacing: 12) {
-                // Placeholder avatar circle (no avatarUrl on GroupThread)
+                // ── Avatar: light‐green circle with first letter of username ──
+                let first = String(thread.authorID.prefix(1)).uppercased()
                 Circle()
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(Color.green.opacity(0.3))
                     .frame(width: 40, height: 40)
+                    .overlay(
+                        Text(first)
+                            .font(.subheadline)
+                            .bold()
+                            .foregroundColor(.white)
+                    )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    // Tapping author name → ProfileView(username: thread.authorID)
+                    // Tapping “authorID” → ProfileView(username: thread.authorID)
                     NavigationLink(destination: ProfileView(username: thread.authorID)) {
                         Text(thread.authorID)
                             .font(.subheadline)
@@ -258,8 +265,8 @@ struct ThreadRowView: View {
                         viewModel.deleteThread(groupID: groupID, threadID: thread.id)
                     } label: {
                         Image(systemName: "trash")
-                            .foregroundColor(.red)
                             .font(.title3)
+                            .foregroundColor(.red)
                     }
                     .buttonStyle(BorderlessButtonStyle())
                 }
@@ -270,14 +277,14 @@ struct ThreadRowView: View {
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // ── Like & Reply icons ──
+            // ── Like & Reply icons (unchanged) ──
             HStack(spacing: 24) {
                 Button {
                     if isMember {
                         viewModel.toggleLike(groupID: groupID, threadID: thread.id)
                     }
                 } label: {
-                    Image(systemName: thread.likeCount > 0 ? "heart.fill" : "heart")
+                    Image(systemName: (thread.likeCount > 0) ? "heart.fill" : "heart")
                         .font(.title3)
                         .foregroundColor(
                             isMember
@@ -306,130 +313,5 @@ struct ThreadRowView: View {
 
             Divider()
         }
-    }
-}
-
-
-// ───────────────────────────────────────────────────────────────────────────────
-// MARK: – SectionHeaderView
-// A small helper to render section titles (e.g., “Your Groups”).
-// ───────────────────────────────────────────────────────────────────────────────
-fileprivate struct SectionHeaderView: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(.headline)
-            .padding(.leading, 16)
-    }
-}
-
-
-// ───────────────────────────────────────────────────────────────────────────────
-// MARK: – SearchResultRow
-// Renders one row under “Groups You Might Be Interested In.” Excludes any group
-// the user already belongs to. Tapping the image navigates to GroupDetailView.
-// ───────────────────────────────────────────────────────────────────────────────
-fileprivate struct SearchResultRow: View {
-    let group: BookGroup
-    let currentUserID: String
-
-    // Bindings from parent so we can control the join-sheet and error state:
-    @Binding var joinInProgress: Bool
-    @Binding var groupToAnswer: BookGroup?
-    @Binding var errorMessage: String
-    @Binding var showErrorAlert: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                // Tappable group image
-                NavigationLink(destination: GroupDetailView(groupID: group.id)) {
-                    AsyncImage(url: URL(string: group.imageUrl)) { phase in
-                        switch phase {
-                        case .empty:
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.1))
-                                .frame(width: 80, height: 80)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 80, height: 80)
-                                .clipped()
-                                .cornerRadius(8)
-                        case .failure:
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.red.opacity(0.1))
-                                .overlay(
-                                    Image(systemName: "photo.fill")
-                                        .foregroundColor(.red)
-                                )
-                                .frame(width: 80, height: 80)
-                        @unknown default:
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.1))
-                                .frame(width: 80, height: 80)
-                        }
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(group.title)
-                        .font(.headline)
-                    Text("by \(group.bookAuthor)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                // If already a member, show “Joined,” else show “Join” button
-                if group.memberIDs.contains(currentUserID) {
-                    Text("Joined")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                        .padding(6)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.green, lineWidth: 1)
-                        )
-                } else {
-                    Button {
-                        groupToAnswer = group
-                    } label: {
-                        Text(joinInProgress && groupToAnswer?.id == group.id
-                               ? "Joining…"
-                               : "Join")
-                            .font(.caption)
-                            .foregroundColor(.white)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 12)
-                            .background(Color.blue)
-                            .cornerRadius(8)
-                    }
-                    .disabled(joinInProgress)
-                }
-            }
-
-            HStack(spacing: 8) {
-                Text("\(group.memberIDs.count) members")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text("·")
-                Text(group.createdAt, style: .date)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(UIColor.systemBackground))
-                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-        )
-        .padding(.horizontal)
     }
 }

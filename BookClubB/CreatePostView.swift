@@ -2,8 +2,7 @@
 //  CreatePostView.swift
 //  BookClubB
 //
-//  Created by Brooke Ballhaus on 5/31/25.
-//  Modified 6/11/25 to use Firestore “username” instead of displayName
+//  Updated to use current user’s username, not displayName.
 //
 
 import SwiftUI
@@ -11,7 +10,7 @@ import FirebaseAuth
 import FirebaseFirestore
 
 struct CreatePostView: View {
-    @Environment(\.dismiss) var dismiss
+    @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
     @State private var postBody = ""
@@ -22,18 +21,15 @@ struct CreatePostView: View {
     var body: some View {
         NavigationView {
             Form {
-                // ––– Title Section –––
                 Section(header: Text("Title")) {
                     TextField("Post title", text: $title)
                 }
 
-                // ––– Body Section –––
                 Section(header: Text("Body")) {
                     TextEditor(text: $postBody)
                         .frame(height: 150)
                 }
 
-                // If there’s an error (e.g., failed to fetch username), show it here
                 if let errorMessage = errorMessage {
                     Section {
                         Text("❌ \(errorMessage)")
@@ -43,7 +39,6 @@ struct CreatePostView: View {
             }
             .navigationTitle("New Post")
             .toolbar {
-                // Save button: Disabled if title/body empty or no signed-in user
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         savePost()
@@ -54,8 +49,6 @@ struct CreatePostView: View {
                         Auth.auth().currentUser == nil
                     )
                 }
-
-                // Cancel button simply dismisses
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
@@ -65,13 +58,9 @@ struct CreatePostView: View {
         }
     }
 
-    /// 1) Ensure we have a signed-in user.
-    /// 2) Look up their Firestore document (“/users/{uid}”) to get “username”.
-    /// 3) Call viewModel.addPost(author: username, …).
     private func savePost() {
         guard let currentUser = Auth.auth().currentUser else {
-            // Should never be triggered, since Save is disabled when user == nil
-            errorMessage = "You must be signed in to create a post."
+            errorMessage = "You must be signed in."
             return
         }
 
@@ -79,7 +68,7 @@ struct CreatePostView: View {
         let db = Firestore.firestore()
         let userRef = db.collection("users").document(currentUID)
 
-        // Fetch the “username” field from Firestore
+        // Fetch the user’s “username” field (immutable handle), not the displayName
         userRef.getDocument { snapshot, error in
             if let error = error {
                 DispatchQueue.main.async {
@@ -88,7 +77,6 @@ struct CreatePostView: View {
                 return
             }
 
-            // Extract “username” or default to “Anonymous”
             let fetchedUsername: String
             if
                 let data = snapshot?.data(),
@@ -100,22 +88,27 @@ struct CreatePostView: View {
                 fetchedUsername = "Anonymous"
             }
 
-            // Prepare trimmed title/body
-            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedBody = postBody.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Write the Post doc under “posts”
+            let postRef = db.collection("posts").document() // or however your PostViewModel expects
 
-            // Finally, create the Post document in Firestore.
-            viewModel.addPost(author: fetchedUsername, title: trimmedTitle, body: trimmedBody)
+            let now = Date()
+            let postData: [String: Any] = [
+                "author":    fetchedUsername,       // this is the username
+                "authorUID": currentUID,
+                "title":     title.trimmingCharacters(in: .whitespacesAndNewlines),
+                "body":      postBody.trimmingCharacters(in: .whitespacesAndNewlines),
+                "timestamp": Timestamp(date: now)
+            ]
 
-            // Dismiss after scheduling the write
-            DispatchQueue.main.async {
-                dismiss()
+            postRef.setData(postData) { err in
+                DispatchQueue.main.async {
+                    if let err = err {
+                        self.errorMessage = "Failed to post: \(err.localizedDescription)"
+                        return
+                    }
+                    dismiss()
+                }
             }
         }
     }
-}
-
-// SwiftUI Preview
-#Preview {
-    CreatePostView()
 }

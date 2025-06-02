@@ -2,9 +2,8 @@
 //  NewReplyView.swift
 //  BookClubB
 //
-//  Created by YourName on 6/1/25.
-//  Updated 6/2/25 to simply call `dismiss()` when done,
-//  so that we stay on ThreadDetailView after replying.
+//  Updated 6/2/25: Save “username” (immutable handle), not displayName.
+//  Avatar URLs are no longer used.
 //
 
 import SwiftUI
@@ -17,17 +16,13 @@ struct NewReplyView: View {
     let groupID: String
     let threadID: String
 
-    // Fallback avatar (any placeholder URL)
-    private let defaultAvatar = "https://example.com/default-avatar.png"
-
-    @State private var replyContent: String = ""
-    @State private var isSubmitting: Bool = false
+    @State private var replyContent = ""
+    @State private var isSubmitting = false
     @State private var errorMessage: String?
 
     var body: some View {
         NavigationView {
             VStack(spacing: 16) {
-                // TextEditor for typing the reply content
                 TextEditor(text: $replyContent)
                     .border(Color.gray.opacity(0.4), width: 1)
                     .frame(minHeight: 150)
@@ -37,7 +32,6 @@ struct NewReplyView: View {
                     Text(err)
                         .foregroundColor(.red)
                         .font(.subheadline)
-                        .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
 
@@ -46,26 +40,26 @@ struct NewReplyView: View {
                 Button(action: submitReply) {
                     if isSubmitting {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .frame(maxWidth: .infinity)
                             .padding()
+                            .frame(maxWidth: .infinity)
                             .background(Color.gray)
                             .cornerRadius(8)
+                            .padding(.horizontal)
                     } else {
                         Text("Submit Reply")
                             .font(.headline)
                             .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
                             .padding()
+                            .frame(maxWidth: .infinity)
                             .background(Color.blue)
                             .cornerRadius(8)
+                            .padding(.horizontal)
                     }
                 }
                 .disabled(
-                    replyContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || isSubmitting
+                    replyContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                    isSubmitting
                 )
-                .padding(.horizontal)
                 .padding(.bottom, 20)
             }
             .navigationTitle("New Reply")
@@ -77,7 +71,6 @@ struct NewReplyView: View {
     }
 
     private func submitReply() {
-        // Ensure a user is signed in
         guard let currentUser = Auth.auth().currentUser else {
             errorMessage = "You must be signed in to reply."
             return
@@ -86,67 +79,76 @@ struct NewReplyView: View {
         isSubmitting = true
         errorMessage = nil
 
-        let username = currentUser.displayName ?? "Anonymous"
-        let avatarUrl = defaultAvatar
-
         let db = Firestore.firestore()
+        let userRef = db.collection("users").document(currentUser.uid)
 
-        // 1) Create the new reply document
-        let newReplyRef = db
-            .collection("groups")
-            .document(groupID)
-            .collection("threads")
-            .document(threadID)
-            .collection("replies")
-            .document() // auto‐ID
-
-        let now = Date()
-        let replyData: [String: Any] = [
-            "username":  username,
-            "authorUID": currentUser.uid,                           // ← newly added
-            "avatarUrl": avatarUrl,
-            "content":   replyContent.trimmingCharacters(in: .whitespacesAndNewlines),
-            "createdAt": Timestamp(date: now)
-        ]
-
-        newReplyRef.setData(replyData) { err in
-            if let err = err {
+        // 1) First fetch the user’s immutable “username” from /users/{uid}
+        userRef.getDocument { snapshot, error in
+            if let error = error {
                 DispatchQueue.main.async {
                     self.isSubmitting = false
-                    self.errorMessage = "Failed to reply: \(err.localizedDescription)"
+                    self.errorMessage = "Failed to fetch username: \(error.localizedDescription)"
                 }
                 return
             }
 
-            // 2) Increment the parent thread’s repliesCount
-            let threadRef = db
+            let fetchedUsername: String
+            if
+                let data = snapshot?.data(),
+                let username = data["username"] as? String,
+                !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                fetchedUsername = username
+            } else {
+                fetchedUsername = "Anonymous"
+            }
+
+            // 2) Create the reply document under /groups/{groupID}/threads/{threadID}/replies
+            let newReplyRef = db
                 .collection("groups")
                 .document(groupID)
                 .collection("threads")
                 .document(threadID)
-            threadRef.updateData([
-                "repliesCount": FieldValue.increment(Int64(1))
-            ]) { incErr in
-                DispatchQueue.main.async {
-                    self.isSubmitting = false
-                    if let incErr = incErr {
-                        // We still dismiss the sheet even if increment fails
-                        self.errorMessage = "Reply saved, but failed to update count: \(incErr.localizedDescription)"
+                .collection("replies")
+                .document()
+
+            let now = Date()
+            let replyData: [String: Any] = [
+                "username":  fetchedUsername,  // store the username
+                "authorUID": currentUser.uid,
+                "content":   replyContent.trimmingCharacters(in: .whitespacesAndNewlines),
+                "createdAt": Timestamp(date: now)
+            ]
+
+            newReplyRef.setData(replyData) { err in
+                if let err = err {
+                    DispatchQueue.main.async {
+                        self.isSubmitting = false
+                        self.errorMessage = "Failed to save reply: \(err.localizedDescription)"
                     }
-                    // Dismiss the sheet so we remain on ThreadDetailView
-                    dismiss()
+                    return
+                }
+
+                // 3) Increment the parent thread’s replyCount
+                let threadRef = db
+                    .collection("groups")
+                    .document(groupID)
+                    .collection("threads")
+                    .document(threadID)
+
+                threadRef.updateData([
+                    "repliesCount": FieldValue.increment(Int64(1))
+                ]) { incErr in
+                    DispatchQueue.main.async {
+                        self.isSubmitting = false
+                        if let incErr = incErr {
+                            // We still dismiss even if increment fails
+                            self.errorMessage = "Reply saved, but couldn’t update count: \(incErr.localizedDescription)"
+                        }
+                        dismiss()
+                    }
                 }
             }
         }
-    }
-}
-
-// MARK: - Preview
-struct NewReplyView_Previews: PreviewProvider {
-    static var previews: some View {
-        NewReplyView(
-            groupID: "SAMPLE_GROUP",
-            threadID: "SAMPLE_THREAD"
-        )
     }
 }

@@ -2,6 +2,8 @@
 //  ProfileView.swift
 //  BookClubB
 //
+//  Updated 6/◻️/25: Always show a circle with the first letter of `username`.
+//
 
 import SwiftUI
 import FirebaseAuth
@@ -25,50 +27,17 @@ struct ProfileView: View {
                 // ── PROFILE HEADER ──────────────────────────────────────────
                 if let profile = viewModel.userProfile {
                     HStack(spacing: 16) {
-                        // Profile Image or Placeholder
-                        if let url = URL(string: profile.profileImageURL),
-                           !profile.profileImageURL.isEmpty {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                                case .empty:
-                                    ProgressView()
-                                        .frame(width: 80, height: 80)
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 80, height: 80)
-                                        .clipShape(Circle())
-                                case .failure:
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.2))
-                                        .frame(width: 80, height: 80)
-                                        .overlay(
-                                            Image(systemName: "person.crop.circle")
-                                                .resizable()
-                                                .scaledToFit()
-                                                .foregroundColor(.white)
-                                                .padding(20)
-                                        )
-                                @unknown default:
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.2))
-                                        .frame(width: 80, height: 80)
-                                }
-                            }
-                        } else {
-                            // No image URL ⇒ placeholder circle
-                            Circle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(width: 80, height: 80)
-                                .overlay(
-                                    Image(systemName: "person.crop.circle")
-                                        .resizable()
-                                        .scaledToFit()
-                                        .foregroundColor(.white)
-                                        .padding(20)
-                                )
-                        }
+                        // ── Always show a circle with first letter of `profile.username` ──
+                        let firstLetter = String(profile.username.prefix(1)).uppercased()
+                        Circle()
+                            .fill(Color.gray.opacity(0.5))
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                Text(firstLetter)
+                                    .font(.largeTitle)
+                                    .bold()
+                                    .foregroundColor(.white)
+                            )
 
                         VStack(alignment: .leading, spacing: 4) {
                             // 1) If they typed a distinct displayName, show it;
@@ -104,7 +73,7 @@ struct ProfileView: View {
                                     onSave: { newName, newImage in
                                         // 1) Update display name
                                         viewModel.updateDisplayName(to: newName)
-                                        // 2) If they picked a new image, upload it
+                                        // 2) If they picked a new image, upload it (still optional)
                                         if let img = newImage {
                                             viewModel.uploadProfileImage(img)
                                         }
