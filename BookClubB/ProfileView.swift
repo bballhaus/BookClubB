@@ -3,16 +3,15 @@
 //  BookClubB
 //
 //  Created by ChatGPT on 6/1/25.
-//  Updated 6/12/25 to show each group’s title & cover image,
-//  and to list the user’s actual posts under “Recent Posts.”
+//  Updated 6/12/25: Replaced “Following / Followers” with “Groups / Moderating”.
 //
 
 import SwiftUI
 import FirebaseAuth
 
 struct ProfileView: View {
-    /// If `viewingUsername` is nil, show the signed-in user’s own profile.
-    /// Otherwise, look up that other user by handle (“username”).
+    /// If `viewingUsername` is nil, we show the signed-in user’s own profile (fetched by UID).
+    /// Otherwise, we look up that other user’s profile by their immutable handle (“username”).
     let viewingUsername: String?
 
     @StateObject private var viewModel: ProfileViewModel
@@ -88,15 +87,27 @@ struct ProfileView: View {
                     .padding(.horizontal)
                     .padding(.top, 16)
 
-                    // ── SOME STATS PLACEHOLDER ─────────────────────────────────
-                    HStack(spacing: 24) {
+                    // ── REPLACED STATS: “Groups” & “Moderating” ─────────────────────────
+                    HStack(spacing: 40) {
+                        // Total number of groups this user belongs to
                         VStack {
-                            Text("0") .font(.headline)
-                            Text("Following") .font(.caption) .foregroundColor(.secondary)
+                            Text("\(viewModel.userGroups.count)")
+                                .font(.headline)
+                            Text("Groups")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
+
+                        // Number of those groups where this user is a moderator
                         VStack {
-                            Text("0") .font(.headline)
-                            Text("Followers") .font(.caption) .foregroundColor(.secondary)
+                            let modCount = viewModel.userGroups.filter { group in
+                                group.moderatorIDs.contains(profile.id)
+                            }.count
+                            Text("\(modCount)")
+                                .font(.headline)
+                            Text("Moderating")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                     }
                     .padding(.horizontal)
@@ -209,7 +220,7 @@ struct ProfileView: View {
             .navigationTitle("")
         }
         .fullScreenCover(isPresented: $isLoggedOut) {
-            // After logout, show the root/login view
+            // After logout, show your root/login view (replace ContentView() if needed)
             ContentView()
         }
     }
@@ -219,7 +230,7 @@ struct ProfileView: View {
             try Auth.auth().signOut()
             isLoggedOut = true
         } catch {
-            // Optionally handle error
+            // Optionally display an error message
         }
     }
 }
