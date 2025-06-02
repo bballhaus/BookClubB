@@ -3,8 +3,9 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Modified 6/12/25 so that threads posted by moderators have a light-green background
-//  and display a “MOD” tag next to their username.
+//  Modified 6/12/25 so that moderators can choose whether their thread is tagged.
+//  Threads posted with isModTagged == true now have a light‐green background
+//  and display a “MOD” tag next to the username.
 //
 
 import SwiftUI
@@ -19,10 +20,10 @@ struct GroupDetailView: View {
     // Controls the “Add New Thread” sheet
     @State private var showingNewThreadSheet = false
 
-    // Controls the “Join Group” prompt for non-members
+    // Controls the “Join Group” prompt for non‐members
     @State private var showJoinPrompt = false
 
-    // Bindings for the join-question sheet
+    // Bindings for the join‐question sheet
     @State private var answerText = ""
     @State private var answerErrorMessage = ""
     @State private var showAnswerErrorAlert = false
@@ -76,7 +77,7 @@ struct GroupDetailView: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
 
-                    // 4) Members row: show letter-avatars for first three memberUIDs
+                    // 4) Members row: show letter‐avatars for first three memberUIDs
                     HStack(spacing: 12) {
                         ForEach(Array(group.memberIDs.prefix(3)), id: \.self) { memberUID in
                             MemberAvatarView(uid: memberUID)
@@ -163,13 +164,18 @@ struct GroupDetailView: View {
                     .padding(.top)
                 }
                 .sheet(isPresented: $showingNewThreadSheet) {
-                    NewThreadView(groupID: groupID)
+                    // ── PASS isModerator into NewThreadView ──
+                    let currentUsername = Auth.auth().currentUser?.displayName ?? ""
+                    NewThreadView(
+                        groupID: groupID,
+                        isModerator: viewModel.moderatorUsernames.contains(currentUsername)
+                    )
                 }
             }
 
             Spacer()
 
-            // ── “Join Group” button for non-members ─────────────────────────────
+            // ── “Join Group” button for non‐members ─────────────────────────────
             if let group = viewModel.group, !viewModel.isMember {
                 Button(action: {
                     showJoinPrompt = true
@@ -208,61 +214,11 @@ struct GroupDetailView: View {
 }
 
 /// ────────────────────────────────────────────────────────────────────────────
-/// Renders a single member’s “letter avatar” (first letter of username), on
-/// a light-green circle.
-/// Fetches the user’s `username` from Firestore once onAppear.
-/// ────────────────────────────────────────────────────────────────────────────
-private struct MemberAvatarView: View {
-    let uid: String
-    @State private var username: String = ""
-    @State private var isLoading = true
-
-    var body: some View {
-        Group {
-            if isLoading {
-                // While loading, show a blank (light-green) circle placeholder
-                Circle()
-                    .fill(Color.green.opacity(0.3))
-                    .frame(width: 30, height: 30)
-            } else {
-                // Once username is loaded, overlay its first uppercase letter
-                let first = String(username.prefix(1)).uppercased()
-                Circle()
-                    .fill(Color.green.opacity(0.3))
-                    .frame(width: 30, height: 30)
-                    .overlay(
-                        Text(first)
-                            .font(.subheadline)
-                            .bold()
-                            .foregroundColor(.white)
-                    )
-            }
-        }
-        .onAppear {
-            let db = Firestore.firestore()
-            db.collection("users")
-                .document(uid)
-                .getDocument { snapshot, error in
-                    if let data = snapshot?.data(),
-                       let fetched = data["username"] as? String,
-                       !fetched.isEmpty {
-                        username = fetched
-                    } else {
-                        username = "?"
-                    }
-                    isLoading = false
-                }
-        }
-        .padding(.horizontal, 2)
-    }
-}
-
-/// ────────────────────────────────────────────────────────────────────────────
 /// A single row representing one `GroupThread`.
-/// • If `thread.authorID` is in `viewModel.moderatorUsernames`,
-///   – the entire row’s background becomes a pale green,
+/// • If `thread.isModTagged == true`,
+///   – the row’s background becomes a pale green
 ///   – and a small “MOD” badge appears next to the author’s name.
-/// • Otherwise, it uses the normal styling.
+/// Otherwise, it uses normal styling.
 /// ────────────────────────────────────────────────────────────────────────────
 struct ThreadRowView: View {
     let groupID: String
@@ -281,15 +237,15 @@ struct ThreadRowView: View {
         return currentUID == ownerUID
     }
 
-    /// True if this thread’s author is a moderator
+    /// ── UPDATED: True if _this thread_ was tagged by a moderator ──
     private var isModerator: Bool {
-        viewModel.moderatorUsernames.contains(thread.authorID)
+        thread.isModTagged
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                // ── Avatar: light-green circle with first letter of username ──
+                // ── Avatar: light‐green circle with first letter of username ──
                 let first = String(thread.authorID.prefix(1)).uppercased()
                 Circle()
                     .fill(Color.green.opacity(0.3))
@@ -312,7 +268,7 @@ struct ThreadRowView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
 
-                        // 2) If this author is a moderator, show a small “MOD” badge
+                        // 2) If this thread is flagged isModTagged, show a small “MOD” badge
                         if isModerator {
                             Text("MOD")
                                 .font(.caption2)
@@ -387,12 +343,59 @@ struct ThreadRowView: View {
             Divider()
         }
         .padding()
-        // ── If the author is a moderator, use a pale-green background; otherwise default ──
+        // ── If this thread was tagged isModTagged, use a pale‐green background; otherwise default ──
         .background(
             isModerator
                 ? Color.green.opacity(0.1)
                 : Color(UIColor.secondarySystemBackground)
         )
         .cornerRadius(12)
+    }
+}
+
+/// Renders a single member’s “letter avatar” (first letter of username), on a light‐green circle.
+/// Fetches the user’s `username` from Firestore once onAppear.
+private struct MemberAvatarView: View {
+    let uid: String
+    @State private var username: String = ""
+    @State private var isLoading = true
+
+    var body: some View {
+        Group {
+            if isLoading {
+                // While loading, show a blank (light‐green) circle placeholder
+                Circle()
+                    .fill(Color.green.opacity(0.3))
+                    .frame(width: 30, height: 30)
+            } else {
+                // Once username is loaded, overlay its first uppercase letter
+                let first = String(username.prefix(1)).uppercased()
+                Circle()
+                    .fill(Color.green.opacity(0.3))
+                    .frame(width: 30, height: 30)
+                    .overlay(
+                        Text(first)
+                            .font(.subheadline)
+                            .bold()
+                            .foregroundColor(.white)
+                    )
+            }
+        }
+        .onAppear {
+            let db = Firestore.firestore()
+            db.collection("users")
+                .document(uid)
+                .getDocument { snapshot, error in
+                    if let data = snapshot?.data(),
+                       let fetched = data["username"] as? String,
+                       !fetched.isEmpty {
+                        username = fetched
+                    } else {
+                        username = "?"
+                    }
+                    isLoading = false
+                }
+        }
+        .padding(.horizontal, 2)
     }
 }

@@ -3,7 +3,9 @@
 //  BookClubB
 //
 //  Created by YourName on 6/1/25.
-//  Updated 6/10/25 to include “authorUID” when creating a new thread.
+//  Updated 6/12/25 to include:
+//    • an `isModerator` parameter
+//    • a `Toggle("Tag as Mod")` that writes `"isModTagged": true/false`
 //
 
 import SwiftUI
@@ -12,11 +14,16 @@ import FirebaseFirestore
 
 struct NewThreadView: View {
     let groupID: String
+    let isModerator: Bool      // ← NEW: whether current user is a mod in this group
+
     @Environment(\.dismiss) private var dismiss
 
     @State private var postContent: String = ""
     @State private var isSubmitting: Bool = false
     @State private var errorMessage: String?
+
+    // ── NEW: Track whether the moderator wants their thread to be tagged ──
+    @State private var isModTagged: Bool = false
 
     var body: some View {
         NavigationView {
@@ -28,6 +35,15 @@ struct NewThreadView: View {
                             .stroke(Color.gray.opacity(0.4), lineWidth: 1)
                     )
                     .padding()
+
+                // ── If this user is a moderator, show the “Tag as Mod” toggle ──
+                if isModerator {
+                    Toggle(isOn: $isModTagged) {
+                        Text("Tag as Mod")
+                            .font(.subheadline)
+                    }
+                    .padding(.horizontal)
+                }
 
                 if let error = errorMessage {
                     Text("❌ \(error)")
@@ -88,13 +104,15 @@ struct NewThreadView: View {
             .document() // auto‐ID
 
         let now = Date()
+        // ── INCLUDE “isModTagged” in the data ──
         let threadData: [String: Any] = [
             "username":     username,
-            "authorUID":    currentUser.uid,         // ← newly added
+            "authorUID":    currentUser.uid,
             "content":      postContent.trimmingCharacters(in: .whitespacesAndNewlines),
             "createdAt":    Timestamp(date: now),
             "likesCount":   0,
-            "repliesCount": 0
+            "repliesCount": 0,
+            "isModTagged":  isModTagged
         ]
 
         newThreadRef.setData(threadData) { err in
@@ -112,6 +130,7 @@ struct NewThreadView: View {
 
 struct NewThreadView_Previews: PreviewProvider {
     static var previews: some View {
-        NewThreadView(groupID: "exampleGroupID")
+        // Example preview in which isModerator = true:
+        NewThreadView(groupID: "exampleGroupID", isModerator: true)
     }
 }
