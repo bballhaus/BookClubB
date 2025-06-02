@@ -42,6 +42,7 @@ struct CreateAccountView: View {
                 .padding(.bottom, 24)
 
                 TextField("Username", text: $username)
+                    .foregroundColor(.black)
                     .autocapitalization(.none)
                     .padding(14)
                     .background(
@@ -52,8 +53,8 @@ struct CreateAccountView: View {
                     )
                     .padding(.bottom, 24)
 
-
                 TextField("email@domain.com", text: $email)
+                    .foregroundColor(.black)
                     .keyboardType(.emailAddress)
                     .autocapitalization(.none)
                     .padding(14)
@@ -66,6 +67,7 @@ struct CreateAccountView: View {
                     .padding(.bottom, 24)
 
                 SecureField("Password", text: $password)
+                    .foregroundColor(.black)
                     .padding(14)
                     .background(
                         RoundedRectangle(cornerRadius: 8)
@@ -75,6 +77,7 @@ struct CreateAccountView: View {
                     )
                     .padding(.bottom, 24)
 
+         
                 Button(action: {
                     authVM.createUser(email: email, password: password, username: username)
                 }) {
@@ -114,7 +117,7 @@ struct CreateAccountView: View {
 
             Spacer()
         }
-        .background(Color(.systemBackground).ignoresSafeArea()) // adaptive to light/dark mode
+        .background(Color(.systemBackground).ignoresSafeArea())
     }
 }
 
