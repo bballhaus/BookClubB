@@ -2,8 +2,7 @@
 //  NewReplyView.swift
 //  BookClubB
 //
-//  Updated 6/2/25: Save “username” (immutable handle), not displayName.
-//  Avatar URLs are no longer used.
+//  Created by Brooke Ballhaus on 5/31/25.
 //
 
 import SwiftUI
@@ -82,7 +81,6 @@ struct NewReplyView: View {
         let db = Firestore.firestore()
         let userRef = db.collection("users").document(currentUser.uid)
 
-        // 1) First fetch the user’s immutable “username” from /users/{uid}
         userRef.getDocument { snapshot, error in
             if let error = error {
                 DispatchQueue.main.async {
@@ -103,7 +101,6 @@ struct NewReplyView: View {
                 fetchedUsername = "Anonymous"
             }
 
-            // 2) Create the reply document under /groups/{groupID}/threads/{threadID}/replies
             let newReplyRef = db
                 .collection("groups")
                 .document(groupID)
@@ -114,7 +111,7 @@ struct NewReplyView: View {
 
             let now = Date()
             let replyData: [String: Any] = [
-                "username":  fetchedUsername,  // store the username
+                "username":  fetchedUsername,
                 "authorUID": currentUser.uid,
                 "content":   replyContent.trimmingCharacters(in: .whitespacesAndNewlines),
                 "createdAt": Timestamp(date: now)
@@ -129,7 +126,6 @@ struct NewReplyView: View {
                     return
                 }
 
-                // 3) Increment the parent thread’s replyCount
                 let threadRef = db
                     .collection("groups")
                     .document(groupID)
@@ -142,7 +138,6 @@ struct NewReplyView: View {
                     DispatchQueue.main.async {
                         self.isSubmitting = false
                         if let incErr = incErr {
-                            // We still dismiss even if increment fails
                             self.errorMessage = "Reply saved, but couldn’t update count: \(incErr.localizedDescription)"
                         }
                         dismiss()

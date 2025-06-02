@@ -2,7 +2,7 @@
 //  CreatePostView.swift
 //  BookClubB
 //
-//  Updated to use current user’s username, not displayName.
+//  Created by Brooke Ballhaus on 5/31/25.
 //
 
 import SwiftUI
@@ -89,7 +89,7 @@ struct CreatePostView: View {
             }
 
             // Write the Post doc under “posts”
-            let postRef = db.collection("posts").document() // or however your PostViewModel expects
+            let postRef = db.collection("posts").document()  
 
             let now = Date()
             let postData: [String: Any] = [

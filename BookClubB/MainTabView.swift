@@ -3,6 +3,7 @@
 //  BookClubB
 //
 //  Created by Brooke Ballhaus on 5/31/25.
+//
 //  Updated to call ProfileView() without arguments since it no longer takes any.
 //
 
@@ -14,7 +15,7 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             
-            // MARK: - Home Tab
+            // Home Tab
             NavigationView {
                 HomeView()
             }
@@ -23,7 +24,7 @@ struct MainTabView: View {
             }
             .tag(0)
             
-            // MARK: - Groups Tab
+            // Groups Tab
             NavigationView {
                 GroupPageView()
             }
@@ -32,9 +33,9 @@ struct MainTabView: View {
             }
             .tag(1)
             
-            // MARK: - Profile Tab (Personal Profile)
+            // Personal Profile View
             NavigationView {
-                ProfileView()    // ← No arguments, since ProfileView() is the personal profile view
+                ProfileView()
             }
             .tabItem {
                 Label("Profile", systemImage: "person.crop.circle.fill")

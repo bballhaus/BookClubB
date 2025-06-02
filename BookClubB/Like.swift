@@ -9,7 +9,7 @@ import Foundation
 import FirebaseFirestore
 
 struct Like: Identifiable {
-    var id: String           // Firestore document ID under groups/{groupID}/threads/{threadID}/likes
+    var id: String            
     let userID: String
     let timestamp: Date
 

@@ -2,8 +2,7 @@
 //  ThreadDetailViewModel.swift
 //  BookClubB
 //
-//  Created by ChatGPT on 6/1/25.
-//  Updated 6/1/25 to include an optional authorUID in Reply.
+//  Created by Brooke Ballhaus on 5/31/25.
 //
 
 import Foundation
@@ -12,8 +11,8 @@ import FirebaseAuth
 
 struct Reply: Identifiable {
     let id: String
-    let username: String       // display name
-    let authorUID: String?     // ← newly added
+    let username: String
+    let authorUID: String?
     let avatarUrl: String
     let content: String
     let createdAt: Date
@@ -26,7 +25,6 @@ class ThreadDetailViewModel: ObservableObject {
     private var repliesListener: ListenerRegistration?
 
     func bind(toGroupID groupID: String, threadID: String) {
-        // Remove any existing listener
         repliesListener?.remove()
         replies = []
         errorMessage = nil
@@ -69,7 +67,6 @@ class ThreadDetailViewModel: ObservableObject {
                         return nil
                     }
 
-                    // authorUID is new; may be missing in older replies
                     let authorUID = data["authorUID"] as? String
 
                     return Reply(

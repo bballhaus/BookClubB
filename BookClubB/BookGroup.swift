@@ -2,8 +2,7 @@
 //  BookGroup.swift
 //  BookClubB
 //
-//  Created by YourName on 5/30/25.
-//  Updated 6/10/25 to add `moderatorIDs`, `moderationQuestion`, `correctAnswer`.
+//  Created by Brooke Ballhaus on 5/31/25.
 //
 
 import Foundation
@@ -16,22 +15,17 @@ struct BookGroup: Identifiable {
     let imageUrl: String
     let ownerID: String
 
-    // NEW: an array of UIDs for every moderator of this group
     let moderatorIDs: [String]
 
-    // The list of all member UIDs
     var memberIDs: [String]
 
-    // When someone tries to join, they must answer this question:
     let moderationQuestion: String
 
-    // The correct answer (case‐insensitive) to join
     let correctAnswer: String
 
     let createdAt: Date
     let updatedAt: Date
 
-    /// Parse a Firestore document into BookGroup.
     static func fromDictionary(_ dict: [String: Any], id: String) -> BookGroup? {
         guard
             let title              = dict["title"]               as? String,
@@ -47,7 +41,6 @@ struct BookGroup: Identifiable {
             return nil
         }
 
-        // Read "moderatorIDs" (if missing, default to empty array)
         let modIDs = dict["moderatorIDs"] as? [String] ?? []
 
         let createdAt = createdTS.dateValue()
@@ -68,7 +61,6 @@ struct BookGroup: Identifiable {
         )
     }
 
-    /// Convert this BookGroup to a Firestore‐compatible dictionary.
     func toDictionary() -> [String: Any] {
         return [
             "title":              title,

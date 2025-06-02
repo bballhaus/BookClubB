@@ -2,8 +2,7 @@
 //  GroupDetailViewModel.swift
 //  BookClubB
 //
-//  Created by YourName on 6/1/25.
-//  Updated 6/10/25 to add deleteThread(…) for group owners and fetch moderator usernames.
+// Created by Brooke Ballhaus on 5/31/25.
 //
 
 import Foundation

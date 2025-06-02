@@ -2,8 +2,7 @@
 //  PostViewModel.swift
 //  BookClubB
 //
-//  Created by ChatGPT on 6/1/25.
-//  Updated 6/11/25 to include addPost(author:title:body:).
+//  Created by Brooke Ballhaus on 5/31/25.
 //
 
 import Foundation
@@ -24,7 +23,7 @@ class PostViewModel: ObservableObject {
         listenerRegistration?.remove()
     }
 
-    /// Starts listening to the “posts” collection, ordered by timestamp descending.
+    // Posts collection ordered by descending timestamp descending
     private func fetchPosts() {
         let db = Firestore.firestore()
         listenerRegistration = db
@@ -56,7 +55,7 @@ class PostViewModel: ObservableObject {
             }
     }
 
-    /// Creates a new post document in Firestore with the given author, title, and body.
+    // Creates new post document in Firestore
     func addPost(author: String, title: String, body: String) {
         guard let currentUID = Auth.auth().currentUser?.uid else {
             DispatchQueue.main.async {
@@ -82,7 +81,6 @@ class PostViewModel: ObservableObject {
                 if let err = err {
                     self.errorMessage = "Failed to create post: \(err.localizedDescription)"
                 }
-                // Firestore listener in fetchPosts() will pick up the new post automatically.
             }
         }
     }

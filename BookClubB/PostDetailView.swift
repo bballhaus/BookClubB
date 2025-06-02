@@ -2,7 +2,7 @@
 //  PostDetailView.swift
 //  BookClubB
 //
-//  Updated 6/10/25 so tapping author → ProfileView(username:).
+//  Created by Brooke Ballhaus on 5/31/25.
 //
 
 import SwiftUI

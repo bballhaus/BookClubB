@@ -2,16 +2,14 @@
 //  ProfileView.swift
 //  BookClubB
 //
-//  Created by ChatGPT on 6/1/25.
-//  Updated 6/12/25: Replaced “Following / Followers” with “Groups / Moderating”.
+//  Created by Brooke Ballhaus on 5/31/25.
 //
 
 import SwiftUI
 import FirebaseAuth
 
 struct ProfileView: View {
-    /// If `viewingUsername` is nil, we show the signed-in user’s own profile (fetched by UID).
-    /// Otherwise, we look up that other user’s profile by their immutable handle (“username”).
+
     let viewingUsername: String?
 
     @StateObject private var viewModel: ProfileViewModel
@@ -25,10 +23,19 @@ struct ProfileView: View {
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 16) {
-                // ── PROFILE HEADER ──────────────────────────────────────────
+                HStack {
+                    Spacer()
+                    Image("BookClubLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 200, height: 80)
+                    Spacer()
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+                
                 if let profile = viewModel.userProfile {
                     HStack(spacing: 16) {
-                        // ── Letter‐avatar on a light‐green circle ──
                         let first = String(profile.username.prefix(1)).uppercased()
                         Circle()
                             .fill(Color.green.opacity(0.3))
@@ -41,19 +48,17 @@ struct ProfileView: View {
                             )
 
                         VStack(alignment: .leading, spacing: 4) {
-                            // 1) Display “displayName” if it’s not empty & not same as handle
                             if !profile.displayName.isEmpty && profile.displayName != profile.username {
                                 Text(profile.displayName)
                                     .font(.title2)
                                     .bold()
                             } else {
-                                Text(profile.username)           // fallback
+                                Text(profile.username)
                                     .font(.title2)
                                     .bold()
                                     .foregroundColor(.secondary)
                             }
 
-                            // 2) Always show “@username”
                             Text("@\(profile.username)")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
@@ -61,7 +66,6 @@ struct ProfileView: View {
 
                         Spacer()
 
-                        // 3) If viewing own profile, show “Edit” + “Sign Out”
                         if viewModel.isViewingOwnProfile {
                             Button("Edit") {
                                 viewModel.showingEditSheet = true
@@ -87,9 +91,7 @@ struct ProfileView: View {
                     .padding(.horizontal)
                     .padding(.top, 16)
 
-                    // ── REPLACED STATS: “Groups” & “Moderating” ─────────────────────────
                     HStack(spacing: 40) {
-                        // Total number of groups this user belongs to
                         VStack {
                             Text("\(viewModel.userGroups.count)")
                                 .font(.headline)
@@ -98,7 +100,6 @@ struct ProfileView: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        // Number of those groups where this user is a moderator
                         VStack {
                             let modCount = viewModel.userGroups.filter { group in
                                 group.moderatorIDs.contains(profile.id)
@@ -114,7 +115,6 @@ struct ProfileView: View {
 
                     Divider().padding(.horizontal)
 
-                    // ── GROUPS SECTION ─────────────────────────────────────────
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Groups")
@@ -126,7 +126,6 @@ struct ProfileView: View {
                                     .foregroundColor(.secondary)
                                     .padding(.horizontal)
                             } else {
-                                // Show each group’s cover image + title
                                 ForEach(viewModel.userGroups) { group in
                                     NavigationLink(destination: GroupDetailView(groupID: group.id)) {
                                         HStack(spacing: 12) {
@@ -169,7 +168,6 @@ struct ProfileView: View {
 
                             Divider().padding(.horizontal)
 
-                            // ── RECENT POSTS SECTION ─────────────────────────────────
                             Text("Recent Posts")
                                 .font(.headline)
                                 .padding(.horizontal)
@@ -202,12 +200,10 @@ struct ProfileView: View {
                     }
 
                 } else if let error = viewModel.errorMessage {
-                    // Show an error if loading failed
                     Text(error)
                         .foregroundColor(.red)
                         .padding()
                 } else {
-                    // Still loading
                     VStack {
                         ProgressView()
                         Text("Loading profile…")
@@ -220,7 +216,6 @@ struct ProfileView: View {
             .navigationTitle("")
         }
         .fullScreenCover(isPresented: $isLoggedOut) {
-            // After logout, show your root/login view (replace ContentView() if needed)
             ContentView()
         }
     }
@@ -230,7 +225,7 @@ struct ProfileView: View {
             try Auth.auth().signOut()
             isLoggedOut = true
         } catch {
-            // Optionally display an error message
+            // handle error if needed
         }
     }
 }

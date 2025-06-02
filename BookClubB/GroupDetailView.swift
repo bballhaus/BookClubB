@@ -3,7 +3,8 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Modified 6/12/25 so that moderators can choose whether their thread is tagged.
+//
+//  Modified so that moderators can choose whether their thread is tagged.
 //  Threads posted with isModTagged == true now have a light‐green background
 //  and display a “MOD” tag next to the username.
 //
@@ -17,13 +18,10 @@ struct GroupDetailView: View {
 
     @StateObject private var viewModel = GroupDetailViewModel()
 
-    // Controls the “Add New Thread” sheet
     @State private var showingNewThreadSheet = false
 
-    // Controls the “Join Group” prompt for non‐members
     @State private var showJoinPrompt = false
 
-    // Bindings for the join‐question sheet
     @State private var answerText = ""
     @State private var answerErrorMessage = ""
     @State private var showAnswerErrorAlert = false
@@ -31,7 +29,7 @@ struct GroupDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── HEADER: Banner + Title + Book Author + Members + Mods ──
+            // Header: Banner + Title + Book Author + Members + Mods
             if let group = viewModel.group {
                 VStack(alignment: .leading, spacing: 12) {
                     // 1) Banner image (unchanged)
@@ -118,7 +116,6 @@ struct GroupDetailView: View {
                     Divider()
                 }
             } else {
-                // Loading spinner while `viewModel.group` is nil
                 VStack {
                     ProgressView("Loading group…")
                         .padding(.top, 40)
@@ -127,7 +124,7 @@ struct GroupDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // ── THREADS LIST ───────────────────────────────────────────────────────
+            // Threads list
             if viewModel.group != nil {
                 ScrollView {
                     LazyVStack(spacing: 16) {
@@ -150,7 +147,6 @@ struct GroupDetailView: View {
                             }
                         }
 
-                        // Each thread row (avatar, author, content, like/reply buttons)
                         ForEach(viewModel.threads) { thread in
                             ThreadRowView(
                                 groupID: groupID,
@@ -164,7 +160,6 @@ struct GroupDetailView: View {
                     .padding(.top)
                 }
                 .sheet(isPresented: $showingNewThreadSheet) {
-                    // ── PASS isModerator into NewThreadView ──
                     let currentUsername = Auth.auth().currentUser?.displayName ?? ""
                     NewThreadView(
                         groupID: groupID,
@@ -175,7 +170,7 @@ struct GroupDetailView: View {
 
             Spacer()
 
-            // ── “Join Group” button for non‐members ─────────────────────────────
+            // “Join Group” button for non‐members
             if let group = viewModel.group, !viewModel.isMember {
                 Button(action: {
                     showJoinPrompt = true
@@ -213,20 +208,13 @@ struct GroupDetailView: View {
     }
 }
 
-/// ────────────────────────────────────────────────────────────────────────────
-/// A single row representing one `GroupThread`.
-/// • If `thread.isModTagged == true`,
-///   – the row’s background becomes a pale green
-///   – and a small “MOD” badge appears next to the author’s name.
-/// Otherwise, it uses normal styling.
-/// ────────────────────────────────────────────────────────────────────────────
+
 struct ThreadRowView: View {
     let groupID: String
     let thread: GroupThread
     @ObservedObject var viewModel: GroupDetailViewModel
     let isMember: Bool
 
-    /// True if the current user’s UID == group.ownerID
     private var isOwner: Bool {
         guard
             let currentUID = Auth.auth().currentUser?.uid,
@@ -237,7 +225,6 @@ struct ThreadRowView: View {
         return currentUID == ownerUID
     }
 
-    /// ── UPDATED: True if _this thread_ was tagged by a moderator ──
     private var isModerator: Bool {
         thread.isModTagged
     }
@@ -245,7 +232,6 @@ struct ThreadRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                // ── Avatar: light‐green circle with first letter of username ──
                 let first = String(thread.authorID.prefix(1)).uppercased()
                 Circle()
                     .fill(Color.green.opacity(0.3))
@@ -301,12 +287,11 @@ struct ThreadRowView: View {
                 }
             }
 
-            // ── Thread content ──
+            // Thread content
             Text(thread.content)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // ── Like & Reply icons (unchanged) ──
             HStack(spacing: 24) {
                 Button {
                     if isMember {
@@ -331,7 +316,7 @@ struct ThreadRowView: View {
             }
             .font(.title3)
 
-            // ── “X likes · Y replies” footer ──
+            // Likes/replies footer
             HStack(spacing: 8) {
                 Text("\(thread.likeCount) likes")
                 Text("·")
@@ -343,7 +328,6 @@ struct ThreadRowView: View {
             Divider()
         }
         .padding()
-        // ── If this thread was tagged isModTagged, use a pale‐green background; otherwise default ──
         .background(
             isModerator
                 ? Color.green.opacity(0.1)
@@ -353,8 +337,7 @@ struct ThreadRowView: View {
     }
 }
 
-/// Renders a single member’s “letter avatar” (first letter of username), on a light‐green circle.
-/// Fetches the user’s `username` from Firestore once onAppear.
+
 private struct MemberAvatarView: View {
     let uid: String
     @State private var username: String = ""

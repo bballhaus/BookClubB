@@ -13,14 +13,14 @@ struct CreateAccountView: View {
 
     @State private var email: String = ""
     @State private var password: String = ""
-    @State private var username: String = ""   // Added username state
+    @State private var username: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
 
             Spacer()
 
-            // MARK: – Logo
+            // Logo
             Image("BookClubLogo")
                 .resizable()
                 .scaledToFit()
@@ -67,7 +67,7 @@ struct CreateAccountView: View {
                     )
                     .padding(.bottom, 24)
 
-                // Password SecureField
+
                 SecureField("Password", text: $password)
                     .padding(14)
                     .background(
@@ -78,7 +78,6 @@ struct CreateAccountView: View {
                     )
                     .padding(.bottom, 24)
 
-                // Continue Button - pass username now
                 Button(action: {
                     authVM.createUser(email: email, password: password, username: username)
                 }) {

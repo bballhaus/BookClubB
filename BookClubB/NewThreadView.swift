@@ -2,10 +2,9 @@
 //  NewThreadView.swift
 //  BookClubB
 //
-//  Created by YourName on 6/1/25.
-//  Updated 6/12/25 to include:
-//    • an `isModerator` parameter
-//    • a `Toggle("Tag as Mod")` that writes `"isModTagged": true/false`
+//  Created by Brooke Ballhaus on 5/31/25.
+//
+//  Created `isModerator` parameter and mod tag
 //
 
 import SwiftUI
@@ -14,7 +13,7 @@ import FirebaseFirestore
 
 struct NewThreadView: View {
     let groupID: String
-    let isModerator: Bool      // ← NEW: whether current user is a mod in this group
+    let isModerator: Bool
 
     @Environment(\.dismiss) private var dismiss
 
@@ -22,7 +21,7 @@ struct NewThreadView: View {
     @State private var isSubmitting: Bool = false
     @State private var errorMessage: String?
 
-    // ── NEW: Track whether the moderator wants their thread to be tagged ──
+    // Track whether mod wants thread to be tagged
     @State private var isModTagged: Bool = false
 
     var body: some View {
@@ -36,7 +35,7 @@ struct NewThreadView: View {
                     )
                     .padding()
 
-                // ── If this user is a moderator, show the “Tag as Mod” toggle ──
+                // If user is a moderator, show the “Tag as Mod” toggle
                 if isModerator {
                     Toggle(isOn: $isModTagged) {
                         Text("Tag as Mod")
@@ -84,7 +83,6 @@ struct NewThreadView: View {
     }
 
     private func submitThread() {
-        // Ensure a user is signed in
         guard let currentUser = Auth.auth().currentUser else {
             errorMessage = "You must be signed in to post."
             return
@@ -93,7 +91,6 @@ struct NewThreadView: View {
         isSubmitting = true
         errorMessage = nil
 
-        // Use the user’s displayName as the “username”
         let username = currentUser.displayName ?? "Anonymous"
 
         let db = Firestore.firestore()
@@ -101,10 +98,9 @@ struct NewThreadView: View {
             .collection("groups")
             .document(groupID)
             .collection("threads")
-            .document() // auto‐ID
+            .document()
 
         let now = Date()
-        // ── INCLUDE “isModTagged” in the data ──
         let threadData: [String: Any] = [
             "username":     username,
             "authorUID":    currentUser.uid,

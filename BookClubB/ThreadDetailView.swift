@@ -2,8 +2,7 @@
 //  ThreadDetailView.swift
 //  BookClubB
 //
-//  Updated 6/2/25: Avatars are now “first‐letter of username” circles.
-//  Tapping author’s name uses username (not displayName).
+//  Created by Brooke Ballhaus on 5/31/25.
 //
 
 import SwiftUI
@@ -32,10 +31,8 @@ struct ThreadDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Parent thread header ───────────────────────────────────────
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
-                    // Avatar circle with first letter of thread.authorID
                     let firstLetter = String(thread.authorID.prefix(1)).uppercased()
                     Circle()
                         .fill(Color.gray.opacity(0.2))
@@ -47,7 +44,6 @@ struct ThreadDetailView: View {
                         )
 
                     VStack(alignment: .leading, spacing: 4) {
-                        // Tapping “thread.authorID” → ProfileView(username: thread.authorID)
                         NavigationLink(destination: ProfileView(username: thread.authorID)) {
                             Text(thread.authorID)
                                 .font(.headline)
@@ -67,7 +63,7 @@ struct ThreadDetailView: View {
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
 
-                // Like / reply counts
+                // Like + reply counts
                 HStack(spacing: 16) {
                     Button(action: toggleLike) {
                         if isLikedByCurrentUser {
@@ -100,7 +96,7 @@ struct ThreadDetailView: View {
             }
             .padding()
 
-            // ── Replies List ───────────────────────────────────────────────
+
             if let error = viewModel.errorMessage {
                 Text("❌ \(error)")
                     .foregroundColor(.red)
@@ -120,7 +116,6 @@ struct ThreadDetailView: View {
 
             Divider()
 
-            // ── “Add Reply” button for members ─────────────────────────────
             if isMember {
                 Button(action: {
                     showingNewReplySheet = true
@@ -186,7 +181,7 @@ struct ThreadDetailView: View {
                     }
                 }
             } else {
-                // Add like
+
                 let batch = db.batch()
                 batch.setData(["createdAt": Timestamp(date: Date())],
                               forDocument: likeDocRef)
@@ -204,8 +199,7 @@ struct ThreadDetailView: View {
 }
 
 
-/// A single “reply” row. Avatar is first letter of reply.username,
-/// tapping the name uses ProfileView(username: reply.username).
+
 struct ReplyRowView: View {
     let reply: Reply
 
@@ -224,7 +218,6 @@ struct ReplyRowView: View {
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    // Tapping “reply.username” → ProfileView(username: reply.username)
                     NavigationLink(destination: ProfileView(username: reply.username)) {
                         Text(reply.username)
                             .font(.subheadline).bold()

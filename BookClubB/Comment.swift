@@ -9,7 +9,7 @@ import Foundation
 import FirebaseFirestore
 
 struct Comment: Identifiable {
-    var id: String            // Firestore document ID under groups/{groupID}/threads/{threadID}/comments
+    var id: String            
     let authorID: String
     let content: String
     let timestamp: Date

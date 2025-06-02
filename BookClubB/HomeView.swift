@@ -3,8 +3,7 @@
 //  BookClubB
 //
 //  Created by Brooke Ballhaus on 5/31/25.
-//  Modified 6/2/25 so that each post’s “avatar” is now a light‐green circle
-//  containing the first uppercase letter of post.author (the username).
+//
 //
 
 import SwiftUI
@@ -21,7 +20,6 @@ struct HomeView: View {
                         NavigationLink(destination: PostDetailView(post: post)) {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack(spacing: 12) {
-                                    // ── Avatar: light‐green circle with first letter of username ──
                                     let first = String(post.author.prefix(1)).uppercased()
                                     Circle()
                                         .fill(Color.green.opacity(0.3))
@@ -33,7 +31,6 @@ struct HomeView: View {
                                         )
 
                                     VStack(alignment: .leading, spacing: 2) {
-                                        // Tapping “by <username>” → ProfileView(username:)
                                         NavigationLink(destination: ProfileView(username: post.author)) {
                                             Text(post.author)
                                                 .font(.subheadline)
@@ -85,14 +82,10 @@ struct HomeView: View {
             .sheet(isPresented: $showingCreate) {
                 CreatePostView()
             }
-            // We assume PostViewModel()’s init already begins listening for posts,
-            // so no explicit viewModel.fetchPosts() call is needed here.
         }
     }
 }
 
 #Preview {
-    NavigationView {
-        HomeView()
-    }
+    HomeView() // ✅ Fixed: removed nested NavigationView
 }

@@ -2,31 +2,25 @@
 //  EditProfileView.swift
 //  BookClubB
 //
-//  Created by ChatGPT on 6/11/25.
-//  A sheet that lets the user change only their display name and pick a new profile image.
+// Created by Brooke Ballhaus on 5/31/25.
 //
 
+
 import SwiftUI
-import PhotosUI  // for PHPicker
+import PhotosUI
 
 struct EditProfileView: View {
-    // Initial values passed in by ProfileView:
     @State private var displayName: String
     @State private var profileImageURL: String?
 
-    // Locally track the newly picked UIImage (if any)
     @State private var pickedUIImage: UIImage? = nil
 
-    // Controls the photo picker sheet
     @State private var showingImagePicker = false
 
-    // Callback executed when user taps “Save”
     let onSave: (_ newDisplayName: String, _ newImage: UIImage?) -> Void
 
-    // For dismissing this sheet
     @Environment(\.dismiss) private var dismiss
 
-    // Custom initializer
     init(initialDisplayName: String, initialImageURL: String?, onSave: @escaping (_: String, _: UIImage?) -> Void) {
         self._displayName = State(initialValue: initialDisplayName)
         self._profileImageURL = State(initialValue: initialImageURL)
@@ -38,7 +32,6 @@ struct EditProfileView: View {
             VStack(spacing: 24) {
                 // MARK: – Profile Image Section
                 ZStack(alignment: .bottomTrailing) {
-                    // 1) If the user picked a brand‐new UIImage, show that
                     if let picked = pickedUIImage {
                         Image(uiImage: picked)
                             .resizable()
@@ -46,7 +39,6 @@ struct EditProfileView: View {
                             .frame(width: 120, height: 120)
                             .clipShape(Circle())
                     }
-                    // 2) Else if we have an existing URL, load it with AsyncImage
                     else if let urlString = profileImageURL,
                             let url = URL(string: urlString),
                             !urlString.isEmpty
@@ -138,7 +130,6 @@ struct EditProfileView: View {
                     .disabled(displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            // PHPicker integration
             .sheet(isPresented: $showingImagePicker) {
                 PhotoPicker(selectedImage: $pickedUIImage)
             }
@@ -147,8 +138,6 @@ struct EditProfileView: View {
 }
 
 
-/// A simple wrapper around PHPickerViewController to pick a single image.
-/// Binds the selected UIImage into `$selectedImage`.
 struct PhotoPicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
 

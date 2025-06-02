@@ -1,5 +1,9 @@
+//
 // AuthViewModel.swift
 // BookClubB
+//
+// Created by Irene Lin on 5/31/25.
+//
 
 import Foundation
 import FirebaseAuth
@@ -29,8 +33,8 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    /// Create a new user with email, password, and an immutable username.
-    /// We WRITE only "username" (no displayName) into Firestore here.
+
+    // Create new user (immutable value)
     func createUser(email: String, password: String, username: String) {
         Auth.auth().createUser(withEmail: email, password: password) { [weak self] result, error in
             guard let self = self else { return }
@@ -43,7 +47,6 @@ class AuthViewModel: ObservableObject {
 
             guard let user = result?.user else { return }
 
-            // 1) Optionally set the Auth profile displayName so that Auth.currentUser?.displayName is non-nil
             let changeRequest = user.createProfileChangeRequest()
             changeRequest.displayName = username
             changeRequest.commitChanges { profileError in
@@ -52,7 +55,6 @@ class AuthViewModel: ObservableObject {
                 }
             }
 
-            // 2) Write to Firestore WITHOUT a "displayName" field
             let db = Firestore.firestore()
             let data: [String: Any] = [
                 "username":        username,
@@ -76,7 +78,6 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    /// Sign in with email & password
     func signIn(email: String, password: String) {
         Auth.auth().signIn(withEmail: email, password: password) { [weak self] result, error in
             if let error = error {
@@ -89,7 +90,6 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    /// Anonymous sign-in (optional)
     func signInAnonymously() {
         Auth.auth().signInAnonymously { result, error in
             if let error = error {
@@ -100,7 +100,6 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    /// Sign out the current user
     func signOut() {
         do {
             try Auth.auth().signOut()

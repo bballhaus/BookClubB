@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated 6/11/25 to also add the joined group’s ID into the user’s `groupIDs` array.
+//  Updated to also add the joined group’s ID into the user’s `groupIDs` array.
 //
 
 import SwiftUI
@@ -11,29 +11,25 @@ import FirebaseAuth
 import FirebaseFirestore
 
 struct GroupPageView: View {
-    // ─── State variables ─────────────────────────────────────────────────────
+
     @State private var allGroups: [BookGroup] = []
     @State private var searchText: String = ""
     @State private var showErrorAlert: Bool = false
     @State private var errorMessage: String = ""
     @State private var joinInProgress: Bool = false
 
-    // Controls the “Create Group” sheet
     @State private var showingCreateGroup: Bool = false
 
-    // For the “answer the question” sheet:
     @State private var groupToAnswer: BookGroup? = nil
     @State private var answerText: String = ""
     @State private var answerErrorMessage: String = ""
     @State private var showAnswerErrorAlert: Bool = false
 
-    // ─── Computed properties ──────────────────────────────────────────────────
-    /// UID of the currently signed‐in user (or empty string if none)
+ 
     private var currentUserID: String {
         Auth.auth().currentUser?.uid ?? ""
     }
 
-    /// All groups matching the search text (regardless of membership)
     private var matchingGroups: [BookGroup] {
         let lower = searchText
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -44,7 +40,6 @@ struct GroupPageView: View {
         return allGroups.filter { $0.title.lowercased().contains(lower) }
     }
 
-    /// Of those matching groups, only those the user does NOT already belong to
     private var recommendedGroups: [BookGroup] {
         matchingGroups.filter { !($0.memberIDs.contains(currentUserID)) }
     }
@@ -52,20 +47,17 @@ struct GroupPageView: View {
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 16) {
-                // ─── Page Title ───────────────────────────────────────────────
                 Text("Groups")
                     .font(.largeTitle)
                     .bold()
                     .padding(.horizontal)
 
-                // ─── Search Bar ────────────────────────────────────────────────
                 TextField("Search all groups", text: $searchText)
                     .padding(12)
                     .background(Color.gray.opacity(0.1))
                     .cornerRadius(8)
                     .padding(.horizontal)
 
-                // ─── “New Group” Card ────────────────────────────────────────
                 Button {
                     showingCreateGroup = true
                 } label: {
@@ -86,7 +78,6 @@ struct GroupPageView: View {
                     .padding(.horizontal)
                 }
 
-                // ─── “Your Groups” Section ──────────────────────────────────
                 SectionHeaderView(title: "Your Groups")
                     .padding(.horizontal)
 
@@ -103,7 +94,6 @@ struct GroupPageView: View {
                 }
                 .frame(height: 240)
 
-                // ─── “Groups You Might Be Interested In” Section ───────────
                 SectionHeaderView(title: "Groups You Might Be Interested In")
                     .padding(.horizontal)
 
@@ -144,7 +134,6 @@ struct GroupPageView: View {
             .sheet(isPresented: $showingCreateGroup, onDismiss: fetchAllGroups) {
                 CreateGroupView()
             }
-            // ─── Inline “Answer Group Question” sheet ─────────────────────
             .sheet(item: $groupToAnswer) { group in
                 NavigationView {
                     VStack(spacing: 20) {
@@ -154,18 +143,15 @@ struct GroupPageView: View {
                             .multilineTextAlignment(.center)
                             .padding(.top, 16)
 
-                        // The moderation question itself
                         Text(group.moderationQuestion)
                             .font(.subheadline)
                             .multilineTextAlignment(.leading)
                             .padding(.horizontal, 16)
 
-                        // TextField for the user’s answer
                         TextField("Your answer", text: $answerText)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .padding(.horizontal, 16)
 
-                        // Show any validation error
                         if showAnswerErrorAlert, !answerErrorMessage.isEmpty {
                             Text(answerErrorMessage)
                                 .foregroundColor(.red)
@@ -175,10 +161,8 @@ struct GroupPageView: View {
 
                         Spacer()
 
-                        // Buttons: Cancel & Submit
                         HStack(spacing: 16) {
                             Button(action: {
-                                // User tapped “Cancel”
                                 groupToAnswer = nil
                                 answerText = ""
                                 answerErrorMessage = ""
@@ -196,7 +180,7 @@ struct GroupPageView: View {
                             Spacer()
 
                             Button(action: {
-                                // User tapped “Submit”
+
                                 joinInProgress = true
                                 validateAnswerAndJoin(group: group)
                             }) {
@@ -227,8 +211,7 @@ struct GroupPageView: View {
         }
     }
 
-    // ───────────────────────────────────────────────────────────────────────────
-    /// Fetch all groups from Firestore, sorted by creation date.
+    
     private func fetchAllGroups() {
         let db = Firestore.firestore()
         db.collection("groups")
@@ -245,9 +228,7 @@ struct GroupPageView: View {
             }
     }
 
-    // ───────────────────────────────────────────────────────────────────────────
-    /// Validates the user’s answer. If correct, adds them to both the group’s
-    /// memberIDs array and the user’s groupIDs array in Firestore.
+    
     private func validateAnswerAndJoin(group: BookGroup) {
         let trimmedInput = answerText
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -257,7 +238,6 @@ struct GroupPageView: View {
             .lowercased()
 
         if trimmedInput == trimmedCorrect {
-            // 1) Add current user to the group’s memberIDs AND add group to user’s groupIDs
             guard let user = Auth.auth().currentUser else {
                 answerErrorMessage = "You must be signed in to join."
                 showAnswerErrorAlert = true
@@ -270,16 +250,13 @@ struct GroupPageView: View {
             let groupRef = db.collection("groups").document(group.id)
             let userRef = db.collection("users").document(user.uid)
 
-            // Use a batch to update both documents atomically
             let batch = db.batch()
 
-            // a) Update the group document:
             batch.updateData([
                 "memberIDs": FieldValue.arrayUnion([user.uid]),
                 "updatedAt": Timestamp(date: Date())
             ], forDocument: groupRef)
 
-            // b) Update the user document:
             batch.updateData([
                 "groupIDs": FieldValue.arrayUnion([group.id])
             ], forDocument: userRef)
@@ -290,7 +267,6 @@ struct GroupPageView: View {
                     errorMessage = "Could not join: \(err.localizedDescription)"
                     showErrorAlert = true
                 } else {
-                    // Refresh so “Your Groups” immediately shows the newly joined group
                     fetchAllGroups()
                 }
                 groupToAnswer = nil
@@ -304,16 +280,13 @@ struct GroupPageView: View {
 }
 
 
-// ───────────────────────────────────────────────────────────────────────────────
-// MARK: – GroupCardView
-// A reusable “card” for displaying a BookGroup in a horizontal scroll.
-// ───────────────────────────────────────────────────────────────────────────────
+
 struct GroupCardView: View {
     let group: BookGroup
 
     var body: some View {
         VStack(spacing: 8) {
-            // Cover Image
+
             AsyncImage(url: URL(string: group.imageUrl)) { phase in
                 switch phase {
                 case .empty:
@@ -342,7 +315,6 @@ struct GroupCardView: View {
                 }
             }
 
-            // Group title
             Text(group.title)
                 .font(.caption)
                 .multilineTextAlignment(.center)
@@ -352,10 +324,8 @@ struct GroupCardView: View {
 }
 
 
-// ───────────────────────────────────────────────────────────────────────────────
-// MARK: – SectionHeaderView
-// A small helper to render section titles (e.g. “Your Groups”).
-// ───────────────────────────────────────────────────────────────────────────────
+
+
 fileprivate struct SectionHeaderView: View {
     let title: String
 
@@ -367,16 +337,11 @@ fileprivate struct SectionHeaderView: View {
 }
 
 
-// ───────────────────────────────────────────────────────────────────────────────
-// MARK: – SearchResultRow
-// Renders one row under “Groups You Might Be Interested In.” Excludes any group
-// the user already belongs to. Tapping the image navigates to GroupDetailView.
-// ───────────────────────────────────────────────────────────────────────────────
+
 fileprivate struct SearchResultRow: View {
     let group: BookGroup
     let currentUserID: String
 
-    // Bindings from parent so we can control the join‐sheet and error state:
     @Binding var joinInProgress: Bool
     @Binding var groupToAnswer: BookGroup?
     @Binding var errorMessage: String
@@ -385,7 +350,6 @@ fileprivate struct SearchResultRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                // Tappable group image
                 NavigationLink(destination: GroupDetailView(groupID: group.id)) {
                     AsyncImage(url: URL(string: group.imageUrl)) { phase in
                         switch phase {
@@ -427,7 +391,6 @@ fileprivate struct SearchResultRow: View {
 
                 Spacer()
 
-                // If already a member, show “Joined,” else show “Join” button
                 if group.memberIDs.contains(currentUserID) {
                     Text("Joined")
                         .font(.caption)
@@ -475,3 +438,4 @@ fileprivate struct SearchResultRow: View {
         .padding(.horizontal)
     }
 }
+

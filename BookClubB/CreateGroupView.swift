@@ -3,7 +3,6 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated 6/10/25 to satisfy the new BookGroup initializer.
 //
 
 import SwiftUI
@@ -13,14 +12,12 @@ import FirebaseFirestore
 struct CreateGroupView: View {
     @Environment(\.dismiss) private var dismiss
 
-    // ───────── Form Fields ─────────
     @State private var title: String = ""
     @State private var bookAuthor: String = ""
     @State private var imageUrl: String = ""
     @State private var moderationQuestion: String = ""
     @State private var correctAnswer: String = ""
 
-    // ───────── State Flags ─────────
     @State private var isCreatingGroup: Bool = false
     @State private var errorMessage: String? = nil
     @State private var showErrorAlert: Bool = false
@@ -32,7 +29,6 @@ struct CreateGroupView: View {
                 .bold()
                 .padding(.top)
 
-            // ─── Book Title ───
             Group {
                 Text("Book Title")
                     .font(.headline)
@@ -40,7 +36,6 @@ struct CreateGroupView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
             }
 
-            // ─── Book Author ───
             Group {
                 Text("Book Author")
                     .font(.headline)
@@ -48,7 +43,6 @@ struct CreateGroupView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
             }
 
-            // ─── Image URL ───
             Group {
                 Text("Book Image URL")
                     .font(.headline)
@@ -58,7 +52,6 @@ struct CreateGroupView: View {
                     .keyboardType(.URL)
             }
 
-            // ─── Moderation Question ───
             Group {
                 Text("Provide a question to make sure new members have read the book.")
                     .font(.headline)
@@ -66,7 +59,6 @@ struct CreateGroupView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
             }
 
-            // ─── Correct Answer ───
             Group {
                 Text("Correct Answer")
                     .font(.headline)
@@ -74,7 +66,6 @@ struct CreateGroupView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
             }
 
-            // Show any error message
             if let error = errorMessage {
                 Text(error)
                     .foregroundColor(.red)
@@ -83,7 +74,6 @@ struct CreateGroupView: View {
 
             Spacer()
 
-            // ─── Create Group Button ───
             Button(action: createNewGroup) {
                 HStack {
                     Spacer()
@@ -133,7 +123,6 @@ struct CreateGroupView: View {
         isCreatingGroup = true
         errorMessage = nil
 
-        // Generate a new document ID
         let newID = UUID().uuidString
         let now = Date()
 
@@ -163,7 +152,6 @@ struct CreateGroupView: View {
                     self.errorMessage = "Error creating group: \(err.localizedDescription)"
                     self.showErrorAlert = true
                 } else {
-                    // On success, dismiss back to the Groups page
                     dismiss()
                 }
             }
