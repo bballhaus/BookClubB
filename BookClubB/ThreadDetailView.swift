@@ -2,8 +2,8 @@
 //  ThreadDetailView.swift
 //  BookClubB
 //
-//  Created by YourName on 6/1/25.
-//  Updated 6/4/25 to use GroupThread instead of ThreadModel.
+//  Created by Brooke Ballhaus on 6/1/25.
+//  Updated 6/1/25 to remove the `username` argument from ProfileView (ProfileView() now takes no parameters).
 //
 
 import SwiftUI
@@ -37,14 +37,18 @@ struct ThreadDetailView: View {
             // ── Parent thread’s header info ──
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
-                    // No avatarUrl on GroupThread—use placeholder circle:
+                    // Placeholder circle for an avatar (GroupThread has no avatarUrl)
                     Circle()
                         .fill(Color.gray.opacity(0.1))
                         .frame(width: 50, height: 50)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(thread.authorID) // use authorID as username
-                            .font(.headline)
+                        // Now just opens ProfileView() without arguments
+                        NavigationLink(destination: ProfileView()) {
+                            Text(thread.authorID)
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                        }
                         Text(thread.timestamp, style: .time)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -157,8 +161,6 @@ struct ThreadDetailView: View {
 
     // ───────────────────────────────────────────────────────────────────────────
     /// Toggle like/unlike for the current user on this thread.
-    /// Uses a batched write so that “likeCount” in the thread document
-    /// and a “likes/{currentUID}” sub-document are updated atomically.
     private func toggleLike() {
         guard let currentUID = Auth.auth().currentUser?.uid else {
             return
@@ -215,9 +217,8 @@ struct ThreadDetailView: View {
     }
 }
 
-
 // ───────────────────────────────────────────────────────────────────────────────
-/// A single “reply” row. (This part is unchanged; it already matched your Reply model.)
+/// A single “reply” row.
 struct ReplyRowView: View {
     let reply: Reply
 
@@ -252,9 +253,13 @@ struct ReplyRowView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(reply.username)
-                        .font(.subheadline)
-                        .bold()
+                    // Now just opens ProfileView() without arguments
+                    NavigationLink(destination: ProfileView()) {
+                        Text(reply.username)
+                            .font(.subheadline)
+                            .bold()
+                            .foregroundColor(.blue)
+                    }
                     Text(reply.createdAt, style: .time)
                         .font(.caption)
                         .foregroundColor(.secondary)

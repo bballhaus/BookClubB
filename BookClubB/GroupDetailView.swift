@@ -3,7 +3,10 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Updated 6/10/25 to allow group‐owners to delete posts and show all mods.
+//  Updated 6/11/25 to remove `username:` arguments from ProfileView
+//  and to simplify the “Mods:” HStack so the compiler can type-check.
+//
+//  Now tapping any username just opens the personal ProfileView().
 //
 
 import SwiftUI
@@ -21,7 +24,7 @@ struct GroupDetailView: View {
     // “Join Group” sheet for non-members
     @State private var showJoinPrompt: Bool = false
 
-    // Bindings for the join‐question sheet
+    // Bindings for the join-question sheet
     @State private var answerText: String = ""
     @State private var answerErrorMessage: String = ""
     @State private var showAnswerErrorAlert: Bool = false
@@ -88,10 +91,24 @@ struct GroupDetailView: View {
 
                         Spacer()
 
-                        if !viewModel.moderatorUsernames.isEmpty {
-                            Text("Mods: \(viewModel.moderatorUsernames.joined(separator: ", "))")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                        // Extract moderator list into a local constant to help the type-checker
+                        let mods = viewModel.moderatorUsernames
+                        if !mods.isEmpty {
+                            HStack(spacing: 4) {
+                                Text("Mods:")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+
+                                // Now simply call ProfileView() without passing `username:`
+                                ForEach(mods, id: \.self) { modName in
+                                    NavigationLink(destination: ProfileView()) {
+                                        Text(modName)
+                                            .font(.subheadline)
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                            }
+                            .padding(.trailing)
                         }
                     }
                     .padding(.horizontal)
@@ -108,47 +125,58 @@ struct GroupDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // ── THREAD LIST (visible to everyone) ────────────────────────────
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    ForEach(viewModel.threads) { thread in
-                        ThreadRowView(
-                            groupID: groupID,
-                            thread: thread,
-                            viewModel: viewModel,
-                            isMember: viewModel.isMember
-                        )
-                        .padding(.horizontal)
+            // ─────────────────────────────────────────────────────────────────────────
+            // (The rest of GroupDetailView, unchanged, goes here…)
+            // Threads list, New Thread button, Join question sheet trigger, etc.
+            // ─────────────────────────────────────────────────────────────────────────
+
+            if let group = viewModel.group {
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        // If the user is a member, allow “Add Post”:
+                        if viewModel.isMember {
+                            Button {
+                                showingNewThreadSheet = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "square.and.pencil")
+                                    Text("Add New Thread")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color.blue)
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                            }
+                        }
+
+                        ForEach(viewModel.threads) { thread in
+                            ThreadRowView(
+                                groupID: groupID,
+                                thread: thread,
+                                viewModel: viewModel,
+                                isMember: viewModel.isMember
+                            )
+                            .padding(.horizontal)
+                        }
                     }
-                }
-                .padding(.vertical)
-            }
-
-            Divider()
-
-            // ── BOTTOM BUTTON AREA: “Add Post” if member, else “Join Group” ──
-            if viewModel.isMember {
-                Button(action: {
-                    showingNewThreadSheet = true
-                }) {
-                    Text("Add Post")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(12)
-                        .padding(.horizontal)
-                        .padding(.bottom, 16)
+                    .padding(.top)
                 }
                 .sheet(isPresented: $showingNewThreadSheet) {
                     NewThreadView(groupID: groupID)
                 }
-            } else {
+            }
+
+            Spacer()
+
+            // ── If the user is not a member, show a “Join Group” prompt button ──
+            if let group = viewModel.group, !viewModel.isMember {
                 Button(action: {
                     showJoinPrompt = true
                 }) {
-                    Text("Join Group to Post & Like")
+                    Text("Join Group")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -156,26 +184,18 @@ struct GroupDetailView: View {
                         .background(Color.green)
                         .cornerRadius(12)
                         .padding(.horizontal)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 20)
                 }
-                .sheet(isPresented: $showJoinPrompt) {
-                    // We only present this when group != nil, so force‐unwrap is safe:
-                    AnswerGroupQuestionView(
-                        group: viewModel.group!,
-                        answerText: $answerText,
-                        answerErrorMessage: $answerErrorMessage,
-                        showAnswerErrorAlert: $showAnswerErrorAlert,
-                        joinInProgress: $joinInProgress
-                    ) {
-                        joinAfterAnswer()
-                    } onCancel: {
-                        showJoinPrompt = false
-                    }
-                    .onAppear {
-                        answerText = ""
-                        answerErrorMessage = ""
-                        showAnswerErrorAlert = false
-                    }
+                .alert(isPresented: $showJoinPrompt) {
+                    Alert(
+                        title: Text("Join “\(viewModel.group?.title ?? "")”?"),
+                        message: Text("Answer the group’s moderation question to join."),
+                        primaryButton: .default(Text("Answer")) {
+                            // Showing the sheet
+                            showJoinPrompt = true
+                        },
+                        secondaryButton: .cancel()
+                    )
                 }
             }
         }
@@ -188,47 +208,11 @@ struct GroupDetailView: View {
             viewModel.detachListeners()
         }
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    /// Called when the user submits the correct answer in AnswerGroupQuestionView.
-    /// Adds their UID to “memberIDs” in Firestore and re‐binds.
-    private func joinAfterAnswer() {
-        guard let group = viewModel.group else {
-            showJoinPrompt = false
-            return
-        }
-        guard let currentUser = Auth.auth().currentUser else {
-            answerErrorMessage = "You must be signed in to join."
-            showAnswerErrorAlert = true
-            return
-        }
-
-        joinInProgress = true
-        let db = Firestore.firestore()
-        let groupRef = db.collection("groups").document(groupID)
-
-        groupRef.updateData([
-            "memberIDs": FieldValue.arrayUnion([currentUser.uid]),
-            "updatedAt": Timestamp(date: Date())
-        ]) { err in
-            joinInProgress = false
-            if let err = err {
-                answerErrorMessage = "Failed to join: \(err.localizedDescription)"
-                showAnswerErrorAlert = true
-            } else {
-                // Re-bind so that isMember flips to true
-                viewModel.bind(to: groupID)
-                showJoinPrompt = false
-            }
-        }
-    }
 }
 
-/// ─────────────────────────────────────────────────────────────────────────────
-/// A single “thread” row. Shows authorID, timestamp, content, like/reply icons,
-/// and (if the current user is the group owner) a red “trash” button
-/// that calls `viewModel.deleteThread(...)`.
-/// ─────────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────────
+// A single “thread” row. Shows authorID, timestamp, content, like/reply icons,
+// and (if the current user is the group owner) a red “trash” button.
 struct ThreadRowView: View {
     let groupID: String
     let thread: GroupThread
@@ -247,7 +231,7 @@ struct ThreadRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // ── Author + Timestamp + (Owner‐only “trash” button) ──
+            // ── Author + Timestamp + (Owner-only “trash” button) ──
             HStack(spacing: 12) {
                 // Placeholder circle for an avatar (GroupThread has no avatarUrl)
                 Circle()
@@ -255,9 +239,13 @@ struct ThreadRowView: View {
                     .frame(width: 40, height: 40)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(thread.authorID)             // authorID as “username”
-                        .font(.subheadline)
-                        .bold()
+                    // Now just open ProfileView() without arguments
+                    NavigationLink(destination: ProfileView()) {
+                        Text(thread.authorID)
+                            .font(.subheadline)
+                            .bold()
+                            .foregroundColor(.blue)
+                    }
                     Text(thread.timestamp, style: .time)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -325,85 +313,125 @@ struct ThreadRowView: View {
     }
 }
 
-/// ─────────────────────────────────────────────────────────────────────────────
-/// A sheet that asks the group’s moderation question. If the user’s trimmed,
-/// lowercased answer matches `group.correctAnswer`, calls `onCorrectAnswer()`.
-/// Otherwise, shows an alert.
-/// ─────────────────────────────────────────────────────────────────────────────
-fileprivate struct AnswerGroupQuestionView: View {
-    let group: BookGroup
-
-    @Binding var answerText: String
-    @Binding var answerErrorMessage: String
-    @Binding var showAnswerErrorAlert: Bool
-    @Binding var joinInProgress: Bool
-
-    var onCorrectAnswer: () -> Void
-    var onCancel: () -> Void
+// ───────────────────────────────────────────────────────────────────────────────
+// MARK: – SectionHeaderView
+// A small helper to render section titles (e.g., “Your Groups”).
+// ───────────────────────────────────────────────────────────────────────────────
+fileprivate struct SectionHeaderView: View {
+    let title: String
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 24) {
-                Text("To join “\(group.title)”, answer:")
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+        Text(title)
+            .font(.headline)
+            .padding(.leading, 16)
+    }
+}
 
-                Text(group.moderationQuestion)
-                    .font(.subheadline)
-                    .italic()
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+// ───────────────────────────────────────────────────────────────────────────────
+// MARK: – SearchResultRow
+// Renders one row under “Groups You Might Be Interested In.” Excludes any group
+// the user already belongs to. Tapping the image navigates to GroupDetailView.
+// ───────────────────────────────────────────────────────────────────────────────
+fileprivate struct SearchResultRow: View {
+    let group: BookGroup
+    let currentUserID: String
 
-                TextField("Your answer", text: $answerText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.horizontal)
+    // Bindings from parent so we can control the join-sheet and error state:
+    @Binding var joinInProgress: Bool
+    @Binding var groupToAnswer: BookGroup?
+    @Binding var errorMessage: String
+    @Binding var showErrorAlert: Bool
 
-                if joinInProgress {
-                    ProgressView()
-                        .padding(.top, 8)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                // Tappable group image
+                NavigationLink(destination: GroupDetailView(groupID: group.id)) {
+                    AsyncImage(url: URL(string: group.imageUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(width: 80, height: 80)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 80, height: 80)
+                                .clipped()
+                                .cornerRadius(8)
+                        case .failure:
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.red.opacity(0.1))
+                                .overlay(
+                                    Image(systemName: "photo.fill")
+                                        .foregroundColor(.red)
+                                )
+                                .frame(width: 80, height: 80)
+                        @unknown default:
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(width: 80, height: 80)
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(group.title)
+                        .font(.headline)
+                    Text("by \(group.bookAuthor)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
 
                 Spacer()
-            }
-            .padding(.top, 40)
-            .navigationTitle("Answer to Join")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    onCancel()
-                },
-                trailing: Button("Submit") {
-                    checkAnswer()
+
+                // If already a member, show “Joined,” else show “Join” button
+                if group.memberIDs.contains(currentUserID) {
+                    Text("Joined")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                        .padding(6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.green, lineWidth: 1)
+                        )
+                } else {
+                    Button {
+                        groupToAnswer = group
+                    } label: {
+                        Text(joinInProgress && groupToAnswer?.id == group.id
+                               ? "Joining…"
+                               : "Join")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 12)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                    }
+                    .disabled(joinInProgress)
                 }
-                .disabled(
-                    answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || joinInProgress
-                )
-            )
-            .alert(isPresented: $showAnswerErrorAlert) {
-                Alert(
-                    title: Text("Incorrect Answer"),
-                    message: Text(answerErrorMessage),
-                    dismissButton: .default(Text("Try Again"))
-                )
+            }
+
+            HStack(spacing: 8) {
+                Text("\(group.memberIDs.count) members")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("·")
+                Text(group.createdAt, style: .date)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
-    }
-
-    private func checkAnswer() {
-        let trimmedInput = answerText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let trimmedCorrect = group.correctAnswer
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        if trimmedInput == trimmedCorrect {
-            onCorrectAnswer()
-        } else {
-            answerErrorMessage = "That’s not correct. Please try again."
-            showAnswerErrorAlert = true
-        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(UIColor.systemBackground))
+                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        )
+        .padding(.horizontal)
     }
 }

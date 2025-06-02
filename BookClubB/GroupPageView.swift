@@ -2,8 +2,9 @@
 //  GroupPageView.swift
 //  BookClubB
 //
-//  Created by Brooke Ballhaus on 5/31/25.
-//  Updated 6/4/25 to show a “New Group” card at the top and auto‐refresh upon dismissal.
+//  Created by Irene Lin on 5/31/25.
+//  Updated 6/10/25 to inline the “answer group question” sheet
+//  and expose GroupCardView so that ProfileView can reference it directly.
 //
 
 import SwiftUI
@@ -94,6 +95,7 @@ struct GroupPageView: View {
                     HStack(spacing: 16) {
                         ForEach(allGroups.filter { $0.memberIDs.contains(currentUserID) }) { group in
                             NavigationLink(destination: GroupDetailView(groupID: group.id)) {
+                                // Use the shared GroupCardView declared below
                                 GroupCardView(group: group)
                             }
                             .buttonStyle(PlainButtonStyle())
@@ -103,28 +105,37 @@ struct GroupPageView: View {
                 }
                 .frame(height: 240)
 
-                // ─── “Groups You Might Be Interested In” Section ────────────
+                // ─── “Groups You Might Be Interested In” Section ───────────
                 SectionHeaderView(title: "Groups You Might Be Interested In")
                     .padding(.horizontal)
 
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(recommendedGroups) { group in
-                            SearchResultRow(
-                                group: group,
-                                currentUserID: currentUserID,
-                                joinInProgress: $joinInProgress,
-                                groupToAnswer: $groupToAnswer,
-                                errorMessage: $errorMessage,
-                                showErrorAlert: $showErrorAlert
-                            )
+                if recommendedGroups.isEmpty {
+                    Text("No recommendations at the moment.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(recommendedGroups) { group in
+                                SearchResultRow(
+                                    group: group,
+                                    currentUserID: currentUserID,
+                                    joinInProgress: $joinInProgress,
+                                    groupToAnswer: $groupToAnswer,
+                                    errorMessage: $errorMessage,
+                                    showErrorAlert: $showErrorAlert
+                                )
+                            }
                         }
+                        .padding(.top)
                     }
-                    .padding(.vertical)
                 }
+
+                Spacer()
             }
+            .padding(.top)
             .navigationBarHidden(true)
-            .onAppear { fetchAllGroups() }
             .alert(isPresented: $showErrorAlert) {
                 Alert(
                     title: Text("Error"),
@@ -132,35 +143,89 @@ struct GroupPageView: View {
                     dismissButton: .default(Text("OK"))
                 )
             }
-            // When “New Group” button is tapped, present CreateGroupView in a sheet.
-            // On dismiss, automatically re‐fetch all groups so the newly created one
-            // appears under “Your Groups.”
-            .sheet(isPresented: $showingCreateGroup, onDismiss: {
-                fetchAllGroups()
-            }) {
+            .sheet(isPresented: $showingCreateGroup, onDismiss: fetchAllGroups) {
                 CreateGroupView()
             }
-            // Present the sheet to answer the moderation question, if needed
+            // ─── Inline “Answer Group Question” sheet ─────────────────────
             .sheet(item: $groupToAnswer) { group in
-                AnswerGroupQuestionView(
-                    group: group,
-                    answerText: $answerText,
-                    answerErrorMessage: $answerErrorMessage,
-                    showAnswerErrorAlert: $showAnswerErrorAlert,
-                    joinInProgress: $joinInProgress
-                ) {
-                    // Called when the user enters the correct answer:
-                    joinGroupAfterAnswer(group: group)
-                } onCancel: {
-                    groupToAnswer = nil
-                }
-                .onAppear {
-                    // Clear the answer fields any time this sheet appears
-                    answerText = ""
-                    answerErrorMessage = ""
-                    showAnswerErrorAlert = false
+                NavigationView {
+                    VStack(spacing: 20) {
+                        // Title
+                        Text("Answer to join \"\(group.title)\"")
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 16)
+
+                        // The moderation question itself
+                        Text(group.moderationQuestion)
+                            .font(.subheadline)
+                            .multilineTextAlignment(.leading)
+                            .padding(.horizontal, 16)
+
+                        // TextField for the user’s answer
+                        TextField("Your answer", text: $answerText)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .padding(.horizontal, 16)
+
+                        // Show any validation error
+                        if showAnswerErrorAlert, !answerErrorMessage.isEmpty {
+                            Text(answerErrorMessage)
+                                .foregroundColor(.red)
+                                .font(.caption)
+                                .padding(.horizontal, 16)
+                        }
+
+                        Spacer()
+
+                        // Buttons: Cancel & Submit
+                        HStack(spacing: 16) {
+                            Button(action: {
+                                // User tapped “Cancel”
+                                groupToAnswer = nil
+                                answerText = ""
+                                answerErrorMessage = ""
+                                showAnswerErrorAlert = false
+                            }) {
+                                Text("Cancel")
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 20)
+                                    .background(Color.gray.opacity(0.2))
+                                    .cornerRadius(8)
+                            }
+
+                            Spacer()
+
+                            Button(action: {
+                                // User tapped “Submit”
+                                joinInProgress = true
+                                validateAnswerAndJoin(group: group)
+                            }) {
+                                if joinInProgress {
+                                    ProgressView()
+                                        .padding(.vertical, 10)
+                                        .padding(.horizontal, 20)
+                                } else {
+                                    Text("Submit")
+                                        .font(.body)
+                                        .foregroundColor(.white)
+                                        .padding(.vertical, 10)
+                                        .padding(.horizontal, 20)
+                                }
+                            }
+                            .background(joinInProgress ? Color.gray.opacity(0.6) : Color.blue)
+                            .cornerRadius(8)
+                            .disabled(joinInProgress)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                    }
+                    .navigationTitle("Join Group")
+                    .navigationBarTitleDisplayMode(.inline)
                 }
             }
+            .onAppear(perform: fetchAllGroups)
         }
     }
 
@@ -183,61 +248,61 @@ struct GroupPageView: View {
     }
 
     // ───────────────────────────────────────────────────────────────────────────
-    /// Called once the user correctly answers the moderation question. Adds
-    /// their UID to `memberIDs` and then re‐fetches so UI updates immediately.
-    private func joinGroupAfterAnswer(group: BookGroup) {
-        guard let user = Auth.auth().currentUser else {
-            answerErrorMessage = "You must be signed in to join."
-            showAnswerErrorAlert = true
-            groupToAnswer = nil
-            return
-        }
+    /// Validates the user’s answer. If correct, adds them to memberIDs.
+    private func validateAnswerAndJoin(group: BookGroup) {
+        let trimmedInput = answerText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let trimmedCorrect = group.correctAnswer
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
 
-        joinInProgress = true
-        let db = Firestore.firestore()
-        let groupRef = db.collection("groups").document(group.id)
-
-        groupRef.updateData([
-            "memberIDs": FieldValue.arrayUnion([user.uid]),
-            "updatedAt": Timestamp(date: Date())
-        ]) { err in
-            joinInProgress = false
-            if let err = err {
-                errorMessage = "Could not join: \(err.localizedDescription)"
-                showErrorAlert = true
-            } else {
-                fetchAllGroups() // Refresh so “Your Groups” immediately shows the new group
+        if trimmedInput == trimmedCorrect {
+            // Add current user to the group’s memberIDs array
+            guard let user = Auth.auth().currentUser else {
+                answerErrorMessage = "You must be signed in to join."
+                showAnswerErrorAlert = true
+                joinInProgress = false
+                groupToAnswer = nil
+                return
             }
-            groupToAnswer = nil
+
+            let db = Firestore.firestore()
+            let groupRef = db.collection("groups").document(group.id)
+
+            groupRef.updateData([
+                "memberIDs": FieldValue.arrayUnion([user.uid]),
+                "updatedAt": Timestamp(date: Date())
+            ]) { err in
+                joinInProgress = false
+                if let err = err {
+                    errorMessage = "Could not join: \(err.localizedDescription)"
+                    showErrorAlert = true
+                } else {
+                    fetchAllGroups() // Refresh “Your Groups” immediately
+                }
+                groupToAnswer = nil
+            }
+        } else {
+            answerErrorMessage = "That’s not correct. Please try again."
+            showAnswerErrorAlert = true
+            joinInProgress = false
         }
-    }
-}
-
-
-// ───────────────────────────────────────────────────────────────────────────────
-// MARK: – SectionHeaderView
-// A small helper to render section titles (e.g. “Your Groups”).
-// ───────────────────────────────────────────────────────────────────────────────
-fileprivate struct SectionHeaderView: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(.headline)
-            .padding(.leading, 16)
     }
 }
 
 
 // ───────────────────────────────────────────────────────────────────────────────
 // MARK: – GroupCardView
-// Renders a single “card” in the horizontal “Your Groups” scroller.
+// A reusable “card” for displaying a BookGroup in a horizontal scroll.
+// No longer fileprivate, so ProfileView and other screens can use it directly.
 // ───────────────────────────────────────────────────────────────────────────────
-fileprivate struct GroupCardView: View {
+struct GroupCardView: View {
     let group: BookGroup
 
     var body: some View {
-        VStack {
+        VStack(spacing: 8) {
+            // Cover Image
             AsyncImage(url: URL(string: group.imageUrl)) { phase in
                 switch phase {
                 case .empty:
@@ -266,11 +331,27 @@ fileprivate struct GroupCardView: View {
                 }
             }
 
+            // Group title
             Text(group.title)
                 .font(.caption)
                 .multilineTextAlignment(.center)
                 .frame(width: 140)
         }
+    }
+}
+
+
+// ───────────────────────────────────────────────────────────────────────────────
+// MARK: – SectionHeaderView
+// A small helper to render section titles (e.g., “Your Groups”).
+// ───────────────────────────────────────────────────────────────────────────────
+fileprivate struct SectionHeaderView: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.headline)
+            .padding(.leading, 16)
     }
 }
 
@@ -381,90 +462,5 @@ fileprivate struct SearchResultRow: View {
                 .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         )
         .padding(.horizontal)
-    }
-}
-
-
-// ───────────────────────────────────────────────────────────────────────────────
-// MARK: – AnswerGroupQuestionView
-// Presented as a sheet to ask the moderation question for joining a group.
-// Trims + lowercases the input and compares against `correctAnswer` so it’s
-// not case‐sensitive.
-// ───────────────────────────────────────────────────────────────────────────────
-fileprivate struct AnswerGroupQuestionView: View {
-    let group: BookGroup
-
-    @Binding var answerText: String
-    @Binding var answerErrorMessage: String
-    @Binding var showAnswerErrorAlert: Bool
-    @Binding var joinInProgress: Bool
-
-    var onCorrectAnswer: () -> Void
-    var onCancel: () -> Void
-
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 24) {
-                Text("To join “\(group.title)”, answer:")
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-
-                Text(group.moderationQuestion)
-                    .font(.subheadline)
-                    .italic()
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-
-                TextField("Your answer", text: $answerText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.horizontal)
-
-                if joinInProgress {
-                    ProgressView()
-                        .padding(.top, 8)
-                }
-
-                Spacer()
-            }
-            .padding(.top, 40)
-            .navigationTitle("Answer to Join")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    onCancel()
-                },
-                trailing: Button("Submit") {
-                    checkAnswer()
-                }
-                .disabled(
-                    answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || joinInProgress
-                )
-            )
-            .alert(isPresented: $showAnswerErrorAlert) {
-                Alert(
-                    title: Text("Incorrect Answer"),
-                    message: Text(answerErrorMessage),
-                    dismissButton: .default(Text("Try Again"))
-                )
-            }
-        }
-    }
-
-    private func checkAnswer() {
-        let trimmedInput = answerText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let trimmedCorrect = group.correctAnswer
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        if trimmedInput == trimmedCorrect {
-            onCorrectAnswer()
-        } else {
-            answerErrorMessage = "That’s not correct. Please try again."
-            showAnswerErrorAlert = true
-        }
     }
 }

@@ -2,7 +2,8 @@
 //  MainTabView.swift
 //  BookClubB
 //
-//  Created by Irene Lin on 5/31/25.
+//  Created by Brooke Ballhaus on 5/31/25.
+//  Updated to call ProfileView() without arguments since it no longer takes any.
 //
 
 import SwiftUI
@@ -21,7 +22,7 @@ struct MainTabView: View {
                 Label("Home", systemImage: "house.fill")
             }
             .tag(0)
-
+            
             // MARK: - Groups Tab
             NavigationView {
                 GroupPageView()
@@ -30,10 +31,10 @@ struct MainTabView: View {
                 Label("Groups", systemImage: "person.3.fill")
             }
             .tag(1)
-
-            // MARK: - Profile Tab
+            
+            // MARK: - Profile Tab (Personal Profile)
             NavigationView {
-                ProfileView()
+                ProfileView()    // ← No arguments, since ProfileView() is the personal profile view
             }
             .tabItem {
                 Label("Profile", systemImage: "person.crop.circle.fill")
