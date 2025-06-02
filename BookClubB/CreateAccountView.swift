@@ -28,21 +28,19 @@ struct CreateAccountView: View {
                 .padding(.bottom, 32)
 
             VStack(spacing: 0) {
-                // Title & Subtitle
                 VStack(spacing: 8) {
                     Text("Create an account")
                         .font(.title2).bold()
+                        .foregroundColor(.primary)
+
                     Text("Or log back in with your email to continue.")
                         .font(.title2)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-
-        
                 }
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 24)
 
-                // Username TextField (new)
                 TextField("Username", text: $username)
                     .autocapitalization(.none)
                     .padding(14)
@@ -54,7 +52,7 @@ struct CreateAccountView: View {
                     )
                     .padding(.bottom, 24)
 
-                // Email TextField
+
                 TextField("email@domain.com", text: $email)
                     .keyboardType(.emailAddress)
                     .autocapitalization(.none)
@@ -66,7 +64,6 @@ struct CreateAccountView: View {
                             .cornerRadius(8)
                     )
                     .padding(.bottom, 24)
-
 
                 SecureField("Password", text: $password)
                     .padding(14)
@@ -117,7 +114,7 @@ struct CreateAccountView: View {
 
             Spacer()
         }
-        .background(Color.white.ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea()) // adaptive to light/dark mode
     }
 }
 
