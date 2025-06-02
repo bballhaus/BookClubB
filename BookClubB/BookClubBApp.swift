@@ -10,6 +10,7 @@ import FirebaseCore
 
 @main
 struct BookClubBApp: App {
+    
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var authVM = AuthViewModel()
 

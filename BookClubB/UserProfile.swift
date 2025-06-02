@@ -2,49 +2,46 @@
 //  UserProfile.swift
 //  BookClubB
 //
-//  Created by Brooke Ballhaus on 5/31/25.
-//
 
 import Foundation
-import FirebaseFirestore
 
 struct UserProfile: Identifiable {
-    var id: String                 // same as the document ID (uid)
-    let username: String
-    let email: String
-    let profileImageURL: String    // URL to the user’s avatar
-    let groupIDs: [String]         // groups the user belongs to
-    let createdAt: Date
+    let id: String
 
-    // Initialize from Firestore data dictionary
+    /// The immutable “@handle” (never edited via the UI)
+    let username: String
+
+    /// The editable display name (what shows as “Name” on the profile)
+    var displayName: String
+
+    /// URL (string) to the user’s profile image
+    var profileImageURL: String
+
+    /// List of group IDs the user belongs to
+    let groupIDs: [String]
+
     static func fromDictionary(_ dict: [String: Any], id: String) -> UserProfile? {
+        // 1) Always require “username” (the immutable handle), plus image+groups
         guard
-            let username = dict["username"] as? String,
-            let email = dict["email"] as? String,
-            let profileImageURL = dict["profileImageURL"] as? String,
-            let groupIDs = dict["groupIDs"] as? [String],
-            let timestamp = dict["createdAt"] as? Timestamp
+            let username   = dict["username"]      as? String,
+            let imageURL   = dict["profileImageURL"] as? String,
+            let groupIDs   = dict["groupIDs"]      as? [String]
         else {
             return nil
         }
+
+        // 2) “displayName” is now optional; if missing or empty, default back to username
+        let rawDisplay = dict["displayName"] as? String
+        let computedDisplayName = (rawDisplay?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+            ? rawDisplay!
+            : username
+
         return UserProfile(
             id: id,
             username: username,
-            email: email,
-            profileImageURL: profileImageURL,
-            groupIDs: groupIDs,
-            createdAt: timestamp.dateValue()
+            displayName: computedDisplayName,
+            profileImageURL: imageURL,
+            groupIDs: groupIDs
         )
-    }
-
-    // Convert to a dictionary for writing/updating Firestore
-    func toDictionary() -> [String: Any] {
-        return [
-            "username": username,
-            "email": email,
-            "profileImageURL": profileImageURL,
-            "groupIDs": groupIDs,
-            "createdAt": Timestamp(date: createdAt)
-        ]
     }
 }

@@ -3,7 +3,7 @@
 //  BookClubB
 //
 //  Created by ChatGPT on 6/1/25.
-//  Updated 6/11/25 to add an `addPost(author:title:body:)` method.
+//  Updated 6/11/25 to include addPost(author:title:body:).
 //
 
 import Foundation
@@ -57,9 +57,7 @@ class PostViewModel: ObservableObject {
     }
 
     /// Creates a new post document in Firestore with the given author, title, and body.
-    /// The `author` parameter should be the display name (e.g. “brooke”).
     func addPost(author: String, title: String, body: String) {
-        // Ensure user is signed in so we can record UID if needed.
         guard let currentUID = Auth.auth().currentUser?.uid else {
             DispatchQueue.main.async {
                 self.errorMessage = "You must be signed in to create a post."
@@ -68,12 +66,12 @@ class PostViewModel: ObservableObject {
         }
 
         let db = Firestore.firestore()
-        let newPostRef = db.collection("posts").document() // auto‐generated ID
+        let newPostRef = db.collection("posts").document()
 
         let now = Date()
         let postData: [String: Any] = [
             "author":     author,
-            "authorUID":  currentUID,                 // store the UID for navigation
+            "authorUID":  currentUID,
             "title":      title.trimmingCharacters(in: .whitespacesAndNewlines),
             "body":       body.trimmingCharacters(in: .whitespacesAndNewlines),
             "timestamp":  Timestamp(date: now)
@@ -84,7 +82,7 @@ class PostViewModel: ObservableObject {
                 if let err = err {
                     self.errorMessage = "Failed to create post: \(err.localizedDescription)"
                 }
-                // On success, the Firestore listener will pick up the new post automatically.
+                // Firestore listener in fetchPosts() will pick up the new post automatically.
             }
         }
     }

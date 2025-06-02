@@ -10,6 +10,7 @@
 		E75ACFAF2DEBA25700EB81F0 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFAE2DEBA25700EB81F0 /* FirebaseAuth */; };
 		E75ACFB12DEBA25700EB81F0 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFB02DEBA25700EB81F0 /* FirebaseCore */; };
 		E75ACFB32DEBA25700EB81F0 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = E75ACFB22DEBA25700EB81F0 /* FirebaseFirestore */; };
+		E75AD1F92DED3BE800EB81F0 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = E75AD1F82DED3BE800EB81F0 /* FirebaseStorage */; };
 		FC1492FE2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = FC1492FD2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community */; };
 /* End PBXBuildFile section */
 
@@ -62,6 +63,7 @@
 				E75ACFB12DEBA25700EB81F0 /* FirebaseCore in Frameworks */,
 				FC1492FE2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community in Frameworks */,
 				E75ACFAF2DEBA25700EB81F0 /* FirebaseAuth in Frameworks */,
+				E75AD1F92DED3BE800EB81F0 /* FirebaseStorage in Frameworks */,
 				E75ACFB32DEBA25700EB81F0 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -127,6 +129,7 @@
 				E75ACFB02DEBA25700EB81F0 /* FirebaseCore */,
 				E75ACFB22DEBA25700EB81F0 /* FirebaseFirestore */,
 				FC1492FD2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community */,
+				E75AD1F82DED3BE800EB81F0 /* FirebaseStorage */,
 			);
 			productName = BookClubB;
 			productReference = E75ACF6A2DEB98AF00EB81F0 /* BookClubB.app */;
@@ -603,6 +606,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E75ACFAD2DEBA25700EB81F0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		E75AD1F82DED3BE800EB81F0 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E75ACFAD2DEBA25700EB81F0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
 		};
 		FC1492FD2DEBBE1D005F24AD /* FirebaseFirestoreCombine-Community */ = {
 			isa = XCSwiftPackageProductDependency;
