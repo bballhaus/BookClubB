@@ -3,8 +3,8 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Modified 6/2/25 so that the first three members now display a
-//  light‐green circle with the first uppercase letter of their username.
+//  Modified 6/12/25 so that threads posted by moderators have a light-green background
+//  and display a “MOD” tag next to their username.
 //
 
 import SwiftUI
@@ -19,10 +19,10 @@ struct GroupDetailView: View {
     // Controls the “Add New Thread” sheet
     @State private var showingNewThreadSheet = false
 
-    // Controls the “Join Group” prompt for non‐members
+    // Controls the “Join Group” prompt for non-members
     @State private var showJoinPrompt = false
 
-    // Bindings for the join‐question sheet
+    // Bindings for the join-question sheet
     @State private var answerText = ""
     @State private var answerErrorMessage = ""
     @State private var showAnswerErrorAlert = false
@@ -76,7 +76,7 @@ struct GroupDetailView: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
 
-                    // 4) Members row: show letter‐avatars for first three memberUIDs
+                    // 4) Members row: show letter-avatars for first three memberUIDs
                     HStack(spacing: 12) {
                         ForEach(Array(group.memberIDs.prefix(3)), id: \.self) { memberUID in
                             MemberAvatarView(uid: memberUID)
@@ -130,7 +130,7 @@ struct GroupDetailView: View {
             if viewModel.group != nil {
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        // If the user is a member, show “Add New Thread”
+                        // “Add New Thread” button for members
                         if viewModel.isMember {
                             Button {
                                 showingNewThreadSheet = true
@@ -169,7 +169,7 @@ struct GroupDetailView: View {
 
             Spacer()
 
-            // ── “Join Group” button for non‐members ─────────────────────────────
+            // ── “Join Group” button for non-members ─────────────────────────────
             if let group = viewModel.group, !viewModel.isMember {
                 Button(action: {
                     showJoinPrompt = true
@@ -207,10 +207,9 @@ struct GroupDetailView: View {
     }
 }
 
-
 /// ────────────────────────────────────────────────────────────────────────────
 /// Renders a single member’s “letter avatar” (first letter of username), on
-/// a light‐green circle.
+/// a light-green circle.
 /// Fetches the user’s `username` from Firestore once onAppear.
 /// ────────────────────────────────────────────────────────────────────────────
 private struct MemberAvatarView: View {
@@ -221,7 +220,7 @@ private struct MemberAvatarView: View {
     var body: some View {
         Group {
             if isLoading {
-                // While loading, show a blank (light‐green) circle placeholder
+                // While loading, show a blank (light-green) circle placeholder
                 Circle()
                     .fill(Color.green.opacity(0.3))
                     .frame(width: 30, height: 30)
@@ -258,12 +257,12 @@ private struct MemberAvatarView: View {
     }
 }
 
-
 /// ────────────────────────────────────────────────────────────────────────────
 /// A single row representing one `GroupThread`.
-/// • The avatar is a light‐green circle with the first letter of `thread.authorID`.
-/// • Tapping the author’s name navigates to ProfileView(username: thread.authorID).
-/// • Like/reply button logic is untouched.
+/// • If `thread.authorID` is in `viewModel.moderatorUsernames`,
+///   – the entire row’s background becomes a pale green,
+///   – and a small “MOD” badge appears next to the author’s name.
+/// • Otherwise, it uses the normal styling.
 /// ────────────────────────────────────────────────────────────────────────────
 struct ThreadRowView: View {
     let groupID: String
@@ -282,10 +281,15 @@ struct ThreadRowView: View {
         return currentUID == ownerUID
     }
 
+    /// True if this thread’s author is a moderator
+    private var isModerator: Bool {
+        viewModel.moderatorUsernames.contains(thread.authorID)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                // ── Avatar: light‐green circle with first letter of thread.authorID ──
+                // ── Avatar: light-green circle with first letter of username ──
                 let first = String(thread.authorID.prefix(1)).uppercased()
                 Circle()
                     .fill(Color.green.opacity(0.3))
@@ -298,14 +302,28 @@ struct ThreadRowView: View {
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    // Tapping “thread.authorID” → ProfileView(username: thread.authorID)
-                    NavigationLink(destination: ProfileView(username: thread.authorID)) {
-                        Text(thread.authorID)
-                            .font(.subheadline)
-                            .bold()
-                            .foregroundColor(.blue)
+                    // 1) Author’s name → ProfileView(username: thread.authorID)
+                    HStack(spacing: 6) {
+                        NavigationLink(destination: ProfileView(username: thread.authorID)) {
+                            Text(thread.authorID)
+                                .font(.subheadline)
+                                .bold()
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        // 2) If this author is a moderator, show a small “MOD” badge
+                        if isModerator {
+                            Text("MOD")
+                                .font(.caption2)
+                                .bold()
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.2))
+                                .cornerRadius(4)
+                        }
                     }
-                    .buttonStyle(PlainButtonStyle())
 
                     Text(thread.timestamp, style: .time)
                         .font(.caption)
@@ -314,7 +332,7 @@ struct ThreadRowView: View {
 
                 Spacer()
 
-                // If this user owns the group, show a delete button
+                // 3) If this user owns the group, show a delete button
                 if isOwner {
                     Button {
                         viewModel.deleteThread(groupID: groupID, threadID: thread.id)
@@ -368,5 +386,13 @@ struct ThreadRowView: View {
 
             Divider()
         }
+        .padding()
+        // ── If the author is a moderator, use a pale-green background; otherwise default ──
+        .background(
+            isModerator
+                ? Color.green.opacity(0.1)
+                : Color(UIColor.secondarySystemBackground)
+        )
+        .cornerRadius(12)
     }
 }

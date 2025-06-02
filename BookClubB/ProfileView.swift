@@ -2,15 +2,17 @@
 //  ProfileView.swift
 //  BookClubB
 //
-//  Updated 6/◻️/25: Always show a circle with the first letter of `username`.
+//  Created by ChatGPT on 6/1/25.
+//  Updated 6/12/25 to show each group’s title & cover image,
+//  and to list the user’s actual posts under “Recent Posts.”
 //
 
 import SwiftUI
 import FirebaseAuth
 
 struct ProfileView: View {
-    /// If `viewingUsername` is nil, we show the signed-in user’s own profile (fetched by UID).
-    /// Otherwise, we look up that other user’s profile by their immutable handle (“username”).
+    /// If `viewingUsername` is nil, show the signed-in user’s own profile.
+    /// Otherwise, look up that other user by handle (“username”).
     let viewingUsername: String?
 
     @StateObject private var viewModel: ProfileViewModel
@@ -27,21 +29,20 @@ struct ProfileView: View {
                 // ── PROFILE HEADER ──────────────────────────────────────────
                 if let profile = viewModel.userProfile {
                     HStack(spacing: 16) {
-                        // ── Always show a circle with first letter of `profile.username` ──
-                        let firstLetter = String(profile.username.prefix(1)).uppercased()
+                        // ── Letter‐avatar on a light‐green circle ──
+                        let first = String(profile.username.prefix(1)).uppercased()
                         Circle()
-                            .fill(Color.gray.opacity(0.5))
+                            .fill(Color.green.opacity(0.3))
                             .frame(width: 80, height: 80)
                             .overlay(
-                                Text(firstLetter)
+                                Text(first)
                                     .font(.largeTitle)
                                     .bold()
                                     .foregroundColor(.white)
                             )
 
                         VStack(alignment: .leading, spacing: 4) {
-                            // 1) If they typed a distinct displayName, show it;
-                            //    otherwise show their handle (username) in gray.
+                            // 1) Display “displayName” if it’s not empty & not same as handle
                             if !profile.displayName.isEmpty && profile.displayName != profile.username {
                                 Text(profile.displayName)
                                     .font(.title2)
@@ -53,7 +54,7 @@ struct ProfileView: View {
                                     .foregroundColor(.secondary)
                             }
 
-                            // 2) Then always show “@username”
+                            // 2) Always show “@username”
                             Text("@\(profile.username)")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
@@ -61,7 +62,7 @@ struct ProfileView: View {
 
                         Spacer()
 
-                        // 3) If this is *my own* profile, show “Edit” + “Sign Out”
+                        // 3) If viewing own profile, show “Edit” + “Sign Out”
                         if viewModel.isViewingOwnProfile {
                             Button("Edit") {
                                 viewModel.showingEditSheet = true
@@ -69,16 +70,13 @@ struct ProfileView: View {
                             .sheet(isPresented: $viewModel.showingEditSheet) {
                                 EditProfileView(
                                     initialDisplayName: profile.displayName,
-                                    initialImageURL: profile.profileImageURL,
-                                    onSave: { newName, newImage in
-                                        // 1) Update display name
-                                        viewModel.updateDisplayName(to: newName)
-                                        // 2) If they picked a new image, upload it (still optional)
-                                        if let img = newImage {
-                                            viewModel.uploadProfileImage(img)
-                                        }
+                                    initialImageURL: profile.profileImageURL
+                                ) { newName, newImage in
+                                    viewModel.updateDisplayName(to: newName)
+                                    if let img = newImage {
+                                        viewModel.uploadProfileImage(img)
                                     }
-                                )
+                                }
                             }
 
                             Button("Sign Out") {
@@ -105,33 +103,89 @@ struct ProfileView: View {
 
                     Divider().padding(.horizontal)
 
-                    // ── GROUPS & RECENT POSTS PLACEHOLDER ──────────────────────
+                    // ── GROUPS SECTION ─────────────────────────────────────────
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Groups")
                                 .font(.headline)
                                 .padding(.horizontal)
 
-                            if profile.groupIDs.isEmpty {
+                            if viewModel.userGroups.isEmpty {
                                 Text("No groups yet.")
                                     .foregroundColor(.secondary)
                                     .padding(.horizontal)
                             } else {
-                                ForEach(profile.groupIDs, id: \.self) { groupID in
-                                    Text("Group \(groupID)")
+                                // Show each group’s cover image + title
+                                ForEach(viewModel.userGroups) { group in
+                                    NavigationLink(destination: GroupDetailView(groupID: group.id)) {
+                                        HStack(spacing: 12) {
+                                            AsyncImage(url: URL(string: group.imageUrl)) { phase in
+                                                switch phase {
+                                                case .empty:
+                                                    RoundedRectangle(cornerRadius: 6)
+                                                        .fill(Color.gray.opacity(0.1))
+                                                        .frame(width: 50, height: 50)
+                                                case .success(let image):
+                                                    image
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                        .frame(width: 50, height: 50)
+                                                        .clipped()
+                                                        .cornerRadius(6)
+                                                case .failure:
+                                                    RoundedRectangle(cornerRadius: 6)
+                                                        .fill(Color.red.opacity(0.1))
+                                                        .frame(width: 50, height: 50)
+                                                @unknown default:
+                                                    RoundedRectangle(cornerRadius: 6)
+                                                        .fill(Color.gray.opacity(0.1))
+                                                        .frame(width: 50, height: 50)
+                                                }
+                                            }
+
+                                            Text(group.title)
+                                                .font(.subheadline)
+                                                .foregroundColor(.primary)
+
+                                            Spacer()
+                                        }
+                                        .padding(.vertical, 4)
                                         .padding(.horizontal)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                             }
 
                             Divider().padding(.horizontal)
 
+                            // ── RECENT POSTS SECTION ─────────────────────────────────
                             Text("Recent Posts")
                                 .font(.headline)
                                 .padding(.horizontal)
 
-                            Text("No posts yet.")
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal)
+                            if viewModel.userPosts.isEmpty {
+                                Text("No posts yet.")
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal)
+                            } else {
+                                ForEach(viewModel.userPosts) { post in
+                                    NavigationLink(destination: PostDetailView(post: post)) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(post.title)
+                                                .font(.subheadline)
+                                                .bold()
+                                                .foregroundColor(.primary)
+
+                                            Text(post.timestamp, style: .date)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding(.vertical, 6)
+                                        .padding(.horizontal)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
                         }
                         .padding(.bottom)
                     }
@@ -155,7 +209,7 @@ struct ProfileView: View {
             .navigationTitle("")
         }
         .fullScreenCover(isPresented: $isLoggedOut) {
-            // After logout, show your root/login view (replace ContentView() with your actual login view)
+            // After logout, show the root/login view
             ContentView()
         }
     }
@@ -165,7 +219,7 @@ struct ProfileView: View {
             try Auth.auth().signOut()
             isLoggedOut = true
         } catch {
-            // Optionally display an error message here
+            // Optionally handle error
         }
     }
 }
