@@ -3,8 +3,8 @@
 //  BookClubB
 //
 //  Created by Irene Lin on 5/31/25.
-//  Modified 6/2/25 so that each thread‐author’s avatar is now a light‐green
-//  circle containing the first uppercase letter of their username.
+//  Modified 6/2/25 so that the first three members now display a
+//  light‐green circle with the first uppercase letter of their username.
 //
 
 import SwiftUI
@@ -76,19 +76,23 @@ struct GroupDetailView: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal)
 
-                    // 4) Members row + “Mods: …” list
-                    HStack(spacing: 8) {
-                        ForEach(Array(group.memberIDs.prefix(3)), id: \.self) { _ in
-                            Circle()
-                                .fill(Color.gray.opacity(0.4))
-                                .frame(width: 24, height: 24)
+                    // 4) Members row: show letter‐avatars for first three memberUIDs
+                    HStack(spacing: 12) {
+                        ForEach(Array(group.memberIDs.prefix(3)), id: \.self) { memberUID in
+                            MemberAvatarView(uid: memberUID)
                         }
-                        Text("\(group.memberIDs.count) members")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+
+                        // If there are more than three members, show “+N more”
+                        if group.memberIDs.count > 3 {
+                            Text("+\(group.memberIDs.count - 3) more")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 4)
+                        }
 
                         Spacer()
 
+                        // 5) “Mods:” list, each tappable → ProfileView(username:)
                         let mods = viewModel.moderatorUsernames
                         if !mods.isEmpty {
                             HStack(spacing: 4) {
@@ -123,10 +127,10 @@ struct GroupDetailView: View {
             }
 
             // ── THREADS LIST ───────────────────────────────────────────────────────
-            if let _ = viewModel.group {
+            if viewModel.group != nil {
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        // “Add New Thread” button for members
+                        // If the user is a member, show “Add New Thread”
                         if viewModel.isMember {
                             Button {
                                 showingNewThreadSheet = true
@@ -145,7 +149,7 @@ struct GroupDetailView: View {
                             }
                         }
 
-                        // Each thread row
+                        // Each thread row (avatar, author, content, like/reply buttons)
                         ForEach(viewModel.threads) { thread in
                             ThreadRowView(
                                 groupID: groupID,
@@ -204,12 +208,63 @@ struct GroupDetailView: View {
 }
 
 
-/// ───────────────────────────────────────────────────────────────────────────────
+/// ────────────────────────────────────────────────────────────────────────────
+/// Renders a single member’s “letter avatar” (first letter of username), on
+/// a light‐green circle.
+/// Fetches the user’s `username` from Firestore once onAppear.
+/// ────────────────────────────────────────────────────────────────────────────
+private struct MemberAvatarView: View {
+    let uid: String
+    @State private var username: String = ""
+    @State private var isLoading = true
+
+    var body: some View {
+        Group {
+            if isLoading {
+                // While loading, show a blank (light‐green) circle placeholder
+                Circle()
+                    .fill(Color.green.opacity(0.3))
+                    .frame(width: 30, height: 30)
+            } else {
+                // Once username is loaded, overlay its first uppercase letter
+                let first = String(username.prefix(1)).uppercased()
+                Circle()
+                    .fill(Color.green.opacity(0.3))
+                    .frame(width: 30, height: 30)
+                    .overlay(
+                        Text(first)
+                            .font(.subheadline)
+                            .bold()
+                            .foregroundColor(.white)
+                    )
+            }
+        }
+        .onAppear {
+            let db = Firestore.firestore()
+            db.collection("users")
+                .document(uid)
+                .getDocument { snapshot, error in
+                    if let data = snapshot?.data(),
+                       let fetched = data["username"] as? String,
+                       !fetched.isEmpty {
+                        username = fetched
+                    } else {
+                        username = "?"
+                    }
+                    isLoading = false
+                }
+        }
+        .padding(.horizontal, 2)
+    }
+}
+
+
+/// ────────────────────────────────────────────────────────────────────────────
 /// A single row representing one `GroupThread`.
-/// • The avatar is now a light‐green circle with the first letter of `thread.authorID`.
-/// • Tapping the author’s name navigates to ProfileView(username:).
-/// • The like/reply button logic is exactly as before, unchanged.
-/// ───────────────────────────────────────────────────────────────────────────────
+/// • The avatar is a light‐green circle with the first letter of `thread.authorID`.
+/// • Tapping the author’s name navigates to ProfileView(username: thread.authorID).
+/// • Like/reply button logic is untouched.
+/// ────────────────────────────────────────────────────────────────────────────
 struct ThreadRowView: View {
     let groupID: String
     let thread: GroupThread
@@ -230,7 +285,7 @@ struct ThreadRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                // ── Avatar: light‐green circle with first letter of username ──
+                // ── Avatar: light‐green circle with first letter of thread.authorID ──
                 let first = String(thread.authorID.prefix(1)).uppercased()
                 Circle()
                     .fill(Color.green.opacity(0.3))
@@ -243,7 +298,7 @@ struct ThreadRowView: View {
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    // Tapping “authorID” → ProfileView(username: thread.authorID)
+                    // Tapping “thread.authorID” → ProfileView(username: thread.authorID)
                     NavigationLink(destination: ProfileView(username: thread.authorID)) {
                         Text(thread.authorID)
                             .font(.subheadline)
@@ -259,7 +314,7 @@ struct ThreadRowView: View {
 
                 Spacer()
 
-                // If this user is the group’s owner, show a delete button
+                // If this user owns the group, show a delete button
                 if isOwner {
                     Button {
                         viewModel.deleteThread(groupID: groupID, threadID: thread.id)
