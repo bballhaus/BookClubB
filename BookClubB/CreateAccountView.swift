@@ -1,10 +1,3 @@
-//
-//  CreateAccountView.swift
-//  BookClubB
-//
-//  Created by Brooke Ballhaus on 5/31/25.
-//
-
 import SwiftUI
 import FirebaseAuth
 
@@ -16,108 +9,106 @@ struct CreateAccountView: View {
     @State private var username: String = ""
 
     var body: some View {
-        VStack(spacing: 0) {
-
-            Spacer()
-
-            // Logo
-            Image("BookClubLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 200, height: 80)
-                .padding(.bottom, 32)
-
+        NavigationView {
             VStack(spacing: 0) {
-                VStack(spacing: 8) {
-                    Text("Create an account")
-                        .font(.title2).bold()
-                        .foregroundColor(.primary)
+                Spacer()
 
-                    Text("Or log back in with your email to continue.")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 24)
+                Image("BookClubLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 200, height: 80)
+                    .padding(.bottom, 32)
 
-                TextField("Username", text: $username)
-                    .foregroundColor(.black)
-                    .autocapitalization(.none)
-                    .padding(14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
-                            .background(Color(white: 0.95))
-                            .cornerRadius(8)
-                    )
+                VStack(spacing: 0) {
+                    VStack(spacing: 8) {
+                        Text("Create an account")
+                            .font(.title2).bold()
+                        Text("Or log back in with your email to continue.")
+                            .font(.title2)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .multilineTextAlignment(.center)
                     .padding(.bottom, 24)
 
-                TextField("email@domain.com", text: $email)
-                    .foregroundColor(.black)
-                    .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
-                    .padding(14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
-                            .background(Color(white: 0.95))
+                    TextField("Username", text: $username)
+                        .autocapitalization(.none)
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
+                                .background(Color(white: 0.95))
+                                .cornerRadius(8)
+                        )
+                        .padding(.bottom, 24)
+
+                    TextField("email@domain.com", text: $email)
+                        .keyboardType(.emailAddress)
+                        .autocapitalization(.none)
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
+                                .background(Color(white: 0.95))
+                                .cornerRadius(8)
+                        )
+                        .padding(.bottom, 24)
+
+                    SecureField("Password", text: $password)
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
+                                .background(Color(white: 0.95))
+                                .cornerRadius(8)
+                        )
+                        .padding(.bottom, 24)
+
+                    Button(action: {
+                        authVM.createUser(email: email, password: password, username: username)
+                    }) {
+                        Text("Continue")
+                            .foregroundColor(.white)
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.black)
                             .cornerRadius(8)
-                    )
+                    }
                     .padding(.bottom, 24)
 
-                SecureField("Password", text: $password)
-                    .foregroundColor(.black)
-                    .padding(14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
-                            .background(Color(white: 0.95))
-                            .cornerRadius(8)
-                    )
-                    .padding(.bottom, 24)
-
-         
-                Button(action: {
-                    authVM.createUser(email: email, password: password, username: username)
-                }) {
-                    Text("Continue")
-                        .foregroundColor(.white)
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.black)
-                        .cornerRadius(8)
-                }
-                .padding(.bottom, 24)
-
-                // Terms & Privacy
-                VStack(spacing: 2) {
-                    Text("By clicking continue, you agree to our")
-                        .font(.footnote)
-                        .foregroundColor(.gray)
-
-                    HStack(spacing: 0) {
-                        Text("Terms of Service")
-                            .font(.footnote)
-                            .foregroundColor(.blue)
-
-                        Text(" and ")
+                    VStack(spacing: 2) {
+                        Text("By clicking continue, you agree to our")
                             .font(.footnote)
                             .foregroundColor(.gray)
 
-                        Text("Privacy Policy")
-                            .font(.footnote)
-                            .foregroundColor(.blue)
-                    }
-                }
-                .multilineTextAlignment(.center)
-            }
-            .padding(.horizontal, 32)
+                        HStack(spacing: 0) {
+                            Text("Terms of Service")
+                                .font(.footnote)
+                                .foregroundColor(.blue)
 
-            Spacer()
+                            Text(" and ")
+                                .font(.footnote)
+                                .foregroundColor(.gray)
+
+                            Text("Privacy Policy")
+                                .font(.footnote)
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 32)
+
+                Spacer()
+
+                // Hidden NavigationLink to HomeView on successful auth
+                NavigationLink(destination: HomeView(), isActive: $authVM.isUserAuthenticated) {
+                    EmptyView()
+                }
+            }
+            .background(Color.white.ignoresSafeArea())
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
     }
 }
 
